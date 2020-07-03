@@ -721,10 +721,6 @@ Function Install-Windows2019 {
                     Write-Log "Launching security intelligence updates"
                     Update-MPSignature -UpdateSource MicrosoftUpdateServer
                 }
-                else {
-                    Write-Log "Changing update settings to Windows Update"
-                    Set-ItemProperty -Path HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU -Name AUOptions -Value "4"
-                }
             }
         }
         catch {
