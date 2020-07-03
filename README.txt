@@ -1,20 +1,20 @@
-***********************************************************************************************************************************************
-*                                                                                                                                             *
-*           Disclaimer:                                                                                                                       *
-*       These scripts are only made as demonstration to facilitate POC/Pilot of MDATP in a lab environement                                   *
-*       There is no support for these scripts by Microsoft or by any of the authors                                                           *
-*       Microsoft or authors are not responsible for impact on your environement if you run these scripts                                     *
-*       You should understand and validate these scripts before using them                                                                    *
-*       These scripts include the download and installation of Microsoft binaires:                                                            *
-*           - Windows Updates                                                                                                                 *
-*           - Framework .NET 4.5                                                                                                              *
-*           - Microsoft Monitoring Agent                                                                                                      *
-*           - SCEP                                                                                                                            *
-*                                                                                                                                             *
-*       You should only use these for test purpose and with the appropriate licence,                                                          *
-*       the script does not provide licence right to use these products                                                                       *
-*                                                                                                                                             *
-***********************************************************************************************************************************************
+*********************************************************************************************************************
+*                                                                                                                   *
+*           Disclaimer:                                                                                             *
+*       These scripts are only made as demonstration to facilitate POC/Pilot of MDATP in a lab environement         *
+*       There is no support for these scripts by Microsoft or by any of the authors                                 *
+*       Microsoft or authors are not responsible for impact on your environement if you run these scripts           *
+*       You should understand and validate these scripts before using them                                          *
+*       These scripts include the download and installation of Microsoft binaires:                                  *
+*           - Windows Updates                                                                                       *
+*           - Framework .NET 4.5                                                                                    *
+*           - Microsoft Monitoring Agent                                                                            *
+*           - SCEP                                                                                                  *
+*                                                                                                                   *
+*       You should only use these for test purpose and with the appropriate licence,                                *
+*       the script does not provide licence right to use these products                                             *
+*                                                                                                                   *
+*********************************************************************************************************************
 ________________________________________________
 
 Microsoft Defender ATP Installation Scripts
