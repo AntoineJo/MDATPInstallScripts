@@ -175,8 +175,8 @@ if (!$global:downloadOnly) {
     elseif (($OSinfo.Version -like "10.0.*") -and ([Convert]::ToInt32($OSinfo.BuildNumber) -ge 14393)) {
         #Win10/Server 2016/2019 + min 1607
     
-        if (("4", "6", "27", "49") -contains $OSinfo.OperatingSystemSKU) {
-            #Windows 10 Pro, Enterprise or Enterprise N
+        if (("4", "6", "27", "48", "49") -contains $OSinfo.OperatingSystemSKU) {
+            #Windows 10 Pro, Pro N, Enterprise or Enterprise N
             Write-Log "Windows 10 Pro, Pro N, Enterprise or Enterprise N"
             $global:OSName = "Windows10x64"
             Install-Windows10
