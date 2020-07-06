@@ -47,8 +47,8 @@ Function Test-MDATPEICAR {
 }
 
 Function Confirm-MDATPInstallation {
-    if ( ($null -eq $global:currentpath) -or ($null -eq $global:resultsDir)) {
-        Write-Log "Current path not set. Exiting" "ERROR"
+    if ( ($null -eq $global:downloadLocation) -or ($null -eq $global:resultsDir)) {
+        Write-Log "Download location path not set. Exiting" "ERROR"
         return 
     }
 
@@ -57,8 +57,8 @@ Function Confirm-MDATPInstallation {
         $url = "https://live.sysinternals.com/psexec.exe"
 
         try {
-            (New-Object Net.WebClient).DownloadFile($url, ($global:currentpath + '\psexec.exe'))
-            if (!(Test-Path ($global:currentpath + "\psexec.exe"))) {
+            (New-Object Net.WebClient).DownloadFile($url, ($global:downloadLocation + '\psexec.exe'))
+            if (!(Test-Path ($global:downloadLocation + "\psexec.exe"))) {
                 Write-Log "Error downloading psexec.exe. Exiting"
                 return
             }
@@ -68,48 +68,94 @@ Function Confirm-MDATPInstallation {
             return
         }
     }
-
-    #Does not work on Windows 7
-    Write-Log "Test connection to WDAV backend as System"
-    Start-Process -FilePath ($global:currentpath + '\psexec.exe') -ArgumentList ("-accepteula", "-nobanner", "-s", ('"' + $Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe" -ValidateMapsConnection >"' + $global:resultsDir + '\mdav.log"')) -Wait -Verb runas
-
-    Write-Log "Extract WDAV configuration & support info"
-    if (Test-Path "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab") {
-        Remove-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab"
+    else {
+        Copy-Item ($global:currentpath + "\psexec.exe") ($global:downloadLocation + '\psexec.exe')
     }
-    Start-Process -FilePath ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe') -ArgumentList ("-GetFiles") -Wait -Verb runas
-    Copy-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab" ($global:resultsDir + '\MpSupportFiles.cab')
 
-    if (!(Test-Path ($global:currentpath + "\MDATPClientAnalyzer"))) {
-        Write-Log "MDATPClientAnalyzer.cmd not found in script directory. Donwloading it"
-        $url = "https://aka.ms/mdatpanalyzer"
-
+    if (!$global:downloadOnly) {
         try {
-            (New-Object Net.WebClient).DownloadFile($url, ($global:currentpath + '\MDATPClientAnalyzer.zip'))
-            if (!(Test-Path ($global:currentpath + "\MDATPClientAnalyzer.zip"))) {
-                Write-Log "Error downloading \MDATPClientAnalyzer.cmd. Exiting"
-                return
-            }
-            if (!(Test-Path ($global:currentpath + "\MDATPClientAnalyzer"))) {
-                New-Item -Path $global:currentpath -Name "MDATPClientAnalyzer" -ItemType "directory"
-            }
-            $expandBuiltIn = get-command Expand-Archive 2> $null
-            if ($null -ne $expandBuiltIn) {
-                Expand-Archive -Path ($global:currentpath + "\MDATPClientAnalyzer.zip") -DestinationPath ($global:currentpath + "\MDATPClientAnalyzer\")
-            }
-            else {
-                Expand-ZIPFile ($global:currentpath + "\MDATPClientAnalyzer.zip") ($global:currentpath + "\MDATPClientAnalyzer\")
+            #Does not work on Windows 7
+            if ("Windows10", "Windows2019", "Windows2016" -contains $global:OSName) {
+                Write-Log "Test connection to WDAV backend as System"
+                Start-Process -FilePath ($global:downloadLocation + '\psexec.exe') -ArgumentList ("-accepteula", "-nobanner", "-s", ('"' + $Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe" -ValidateMapsConnection >"' + $global:resultsDir + '\mdav.log"')) -Wait -Verb runas
+
+                Write-Log "Extract WDAV configuration & support info"
+                if (Test-Path "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab") {
+                    Remove-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab"
+                }
+                Start-Process -FilePath ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe') -ArgumentList ("-GetFiles") -Wait -Verb runas
+                Copy-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab" ($global:resultsDir + '\MpSupportFiles.cab')
             }
         }
         catch {
-            Write-Log "Error downloading \MDATPClientAnalyzer.cmd. Exiting"
-            return
-        }   
+            Write-Log "Error testing MDAV" "ERROR"
+            Write-Log $_ "ERROR"
+        }
     }
 
-    Write-Log "Test connection to MDAV backend as System"
-    Start-Process -FilePath ($global:currentpath + '\MDATPClientAnalyzer\MDATPClientAnalyzer.cmd') -ArgumentList (">" + $global:currentpath + "\mdatp.log") -Wait -Verb runas
-    Copy-Item ($global:currentpath + '\MDATPClientAnalyzer\MDATPClientAnalyzerResult\') ($global:resultsDir) -Recurse 
+    if ($global:EDR -or $global:downloadOnly) {
+        if (!(Test-Path ($global:currentpath + "\MDATPClientAnalyzer.zip"))) {
+            Write-Log "MDATPClientAnalyzer.zip not found in script directory. Donwloading it"
+            $url = "https://aka.ms/mdatpanalyzer"
+
+            try {
+                (New-Object Net.WebClient).DownloadFile($url, ($global:downloadLocation + '\MDATPClientAnalyzer.zip'))
+                if (!(Test-Path ($global:downloadLocation + "\MDATPClientAnalyzer.zip"))) {
+                    Write-Log "Error downloading \MDATPClientAnalyzer.cmd. Exiting"
+                    return
+                }
+
+            }
+            catch {
+                Write-Log "Error downloading \MDATPClientAnalyzer.cmd. Exiting"
+                return
+            }   
+        }
+        else {
+            Copy-Item ($global:currentpath + "\MDATPClientAnalyzer.zip") ($global:downloadLocation + '\MDATPClientAnalyzer.zip')
+        }
+
+        if (!$global:downloadOnly) {
+            if (!(Test-Path ($global:downloadLocation + "\MDATPClientAnalyzer"))) {
+                New-Item -Path $global:downloadLocation -Name "MDATPClientAnalyzer" -ItemType "directory"
+            }
+            $expandBuiltIn = get-command Expand-Archive 2> $null
+            if ($null -ne $expandBuiltIn) {
+                Expand-Archive -Path ($global:downloadLocation + "\MDATPClientAnalyzer.zip") -DestinationPath ($global:downloadLocation + "\MDATPClientAnalyzer\")
+            }
+            else {
+                Expand-ZIPFile ($global:downloadLocation + "\MDATPClientAnalyzer.zip") ($global:downloadLocation + "\MDATPClientAnalyzer\")
+            }
+
+            Write-Log "Test connection to MDATP backend as System"
+            if (Test-Path ($global:downloadLocation + '\MDATPClientAnalyzer\MDATPClientAnalyzer.cmd')) {
+                Start-Process -FilePath ($global:downloadLocation + '\MDATPClientAnalyzer\MDATPClientAnalyzer.cmd') -ArgumentList (">" + $global:resultsDir + "\mdatp.log") -Wait -Verb runas
+                Copy-Item ($global:downloadLocation + '\MDATPClientAnalyzer\MDATPClientAnalyzerResult\') ($global:resultsDir) -Recurse 
+            }
+        }
+    }
+}
+
+# Reference from https://www.howtogeek.com/tips/how-to-extract-zip-files-using-powershell/
+# Author TAYLOR GIBB
+function Expand-ZipFile {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $true, Position = 0)][string]$SourcePath,
+        [Parameter(Mandatory = $true, Position = 1)][string]$DestinationPath
+    )
+
+    try {
+        $shell = new-object -com shell.application
+        $zip = $shell.NameSpace($SourcePath)
+        foreach ($item in $zip.items()) {
+            $shell.Namespace($DestinationPath).copyhere($item)
+        }
+    }
+        
+    catch {
+        Write-Log ($_.Exception.Message) "WARNING"
+    }
 }
 
 Function downloadAndInstallSCEP {
@@ -194,22 +240,19 @@ Function downloadAndInstallSCEP {
 }
 
 Function getOMSWorkspaceInfo {
-    if (($null -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey)) {
-        Write-Host "Provide your Workspace ID : "
-        $global:WorkspaceID = Read-Host
-        Write-Host "Provide your Workspace Key : "
-        $global:WorkspaceKey = Read-Host
-        if (($null -eq $global:WorkspaceID -or "" -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey -or "" -eq $global:WorkspaceKey)) {
-            Write-Log "Workplace ID or Key are null. Fatal error exiting" "FATAL"
-            Write-Error "Workplace ID or Key are null. Fatal error exiting Windows config"
-            return
-        }
+
+    if (($null -eq $global:WorkspaceID -or "" -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey -or "" -eq $global:WorkspaceKey)) {
+        Write-Log "Workplace ID or Key are null. Fatal error exiting" "FATAL"
+        Write-Error "Workplace ID or Key are null. Fatal error exiting Windows config"
+        exit
     }
+
 }
 
 Function downloadAndInstallDOTNET45 {
     $restartneeded = $false
-    $dotnetWebSource = "https://download.microsoft.com/download/B/A/4/BA4A7E71-2906-4B2D-A0E1-80CF16844F5F/dotNetFx45_Full_setup.exe"
+    $dotnetWebSource = "https://download.microsoft.com/download/E/2/1/E21644B5-2DF2-47C2-91BD-63C560427900/NDP452-KB2901907-x86-x64-AllOS-ENU.exe"
+
     try {
 
         if ($global:EDR) {
@@ -325,10 +368,18 @@ Function downloadAndInstallKB {
 
     $restartneeded = $false
 
-    $installedkb = Get-HotFix
+    if (!$global:downloadOnly) {
+        $installedkb = Get-HotFix
+    }
+    else {
+        $installedkb = @{}
+    }
     foreach ($kb in $kburl.Keys) {
+
         $installed = $false
+        
         $installed = $installedkb | ForEach-Object { if ($_.HotfixID -eq $kb) { $true } }
+        
         if (!$installed -or $global:downloadOnly) {
             try {
 
@@ -414,7 +465,6 @@ Function Install-Windows7 {
         } while(!$fin) #>
     }
 }
-
 Function Install-Windows81 {
     
     Write-Log "Handle Windows 8.1"
@@ -458,6 +508,10 @@ Function Install-Windows81 {
             }
         } while (!$fin)#>
     }
+}
+
+Function Get-inforamtion {
+    get-wmiObject AntivirusProduct -Namespace root\SecurityCenter2 > $ENV:TEMP + '\MDATP\WMI_Antivirus.log'
 }
 
 Function Install-Windows10 {
@@ -539,7 +593,7 @@ Function Install-Windows2008R2 {
     #KB4074598 Feb2018 monthly rollup replaced by full update of Windows 2008 R2, for that we need to install KB410378 (replacement for required KB4074598) and KB3125574 (replacement for required KB3080149)
 
     $kburl = @{KB4103718 = "http://download.windowsupdate.com/d/msdownload/update/software/secu/2018/05/windows6.1-kb4103718-x64_c051268978faef39e21863a95ea2452ecbc0936d.msu";
-        KB3125574        = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2016/05/windows6.1-kb3125574-v4-x64_2dafb1d203c8964239af3048b5dd4b1264cd93b9.msu"
+               KB3125574 = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2016/05/windows6.1-kb3125574-v4-x64_2dafb1d203c8964239af3048b5dd4b1264cd93b9.msu"
     }
 
     
@@ -585,7 +639,7 @@ Function Install-Windows2012R2 {
 
     $restartneeded = $false
 
-      #Update for customer XP & telemetry KB3080149
+    #Update for customer XP & telemetry KB3080149
     $kburl = @{KB3080149 = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2015/08/windows8.1-kb3080149-x64_4254355747ba7cf6974bcfe27c4c34a042e3b07e.msu" }
 
     if ($global:EDR) {
@@ -896,7 +950,7 @@ Function Add-MachineTag {
 
     Try {
         if (($null -eq $global:MachineTag) -or ("" -eq $global:MachineTag)) {
-            Write-Log "Machine Tag is null" "ERROR"
+            Write-Log "Machine Tag is null" "INFO"
             return
         }
         else {
@@ -923,6 +977,6 @@ Export-ModuleMember -Function Install-Windows2012R2
 Export-ModuleMember -Function Install-Windows2016
 Export-ModuleMember -Function Install-Windows2019
 Export-ModuleMember -Function Test-MDATPEICAR
-Export-ModuleMember -Function Confirm-Installation
+Export-ModuleMember -Function Confirm-MDATPInstallation
 Export-ModuleMember -Function Set-WindowsSecuritySettings
 Export-ModuleMember -Function Add-MachineTag

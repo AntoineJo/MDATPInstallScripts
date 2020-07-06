@@ -2,70 +2,37 @@
 # Script provided as-is without any garantee it will work and is not supported by Microsoft
 
 Param(
-    [Parameter(Mandatory = $true, 
-        ParameterSetName = 'InstallEPP',
-        HelpMessage = 'Install/Enable Endpoint Protection (Antimalware)')]
-    [Parameter(Mandatory = $true, 
-        ParameterSetName = 'InstallAll',
-        HelpMessage = 'Install/Enable Endpoint Protection (Antimalware)')]
+    
+    [Parameter(Mandatory = $false)]
     [switch]
     $installEPP,
 
-    [Parameter(Mandatory = $true, 
-        ParameterSetName = 'InstallEDR',
-        HelpMessage = 'Install/Enable EDR')]
-    [Parameter(Mandatory = $true, 
-        ParameterSetName = 'InstallAll',
-        HelpMessage = 'Install/Enable EDR')]
+    [Parameter(Mandatory = $false)]
     [switch]
     $installEDR,
 
-    [Parameter(Mandatory = $false, 
-        ParameterSetName = 'InstallEDR',
-        HelpMessage = 'MMA Agent WorkspaceKey, needed for Windows7/8.1 & Server 2008R2/2012R2/2016')]
-    [Parameter(Mandatory = $false, 
-        ParameterSetName = 'InstallAll',
-        HelpMessage = 'MMA Agent WorkspaceKey, needed for Windows7/8.1 & Server 2008R2/2012R2/2016')]
+    [Parameter(Mandatory = $false)]
     [String]
     $WorkspaceKey,
 
-    [Parameter(Mandatory = $false, 
-        ParameterSetName = 'InstallEDR',
-        HelpMessage = 'MMA Agent WorkspaceID, needed for Windows7/8.1 & Server 2008R2/2012R2/2016')]
-    [Parameter(Mandatory = $false, 
-        ParameterSetName = 'InstallAll',
-        HelpMessage = 'MMA Agent WorkspaceID, needed for Windows7/8.1 & Server 2008R2/2012R2/2016')]
+    [Parameter(Mandatory = $false)]
     [String]
     $WorkspaceID,
 
-    [Parameter(Mandatory = $false, 
-        ParameterSetName = 'InstallEDR',
-        HelpMessage = 'Define a TAG for MDATP in order to group/identify computers')]
-    [Parameter(Mandatory = $false, 
-        ParameterSetName = 'InstallAll',
-        HelpMessage = 'Define a TAG for MDATP in order to group/identify computers')]
+    [Parameter(Mandatory = $false)]
     [String]
     $MDATPTag,
 
-    [Parameter(Mandatory = $false, 
-        ParameterSetName = 'InstallEPP',
-        HelpMessage = 'Configure advanced Endpoint Protection components like ASR, Ransomware protection & Network Protection in Audit or Block mode (Windows 10/2019+)')]
-    [Parameter(Mandatory = $false, 
-        ParameterSetName = 'InstallAll',
-        HelpMessage = 'Configure advanced Endpoint Protection components like ASR, Ransomware protection & Network Protection in Audit or Block mode (Windows 10/2019+)')]
+    [Parameter(Mandatory = $false)]
     [ValidateSet("AuditMode", "EnforcedMode")]
     [String]
     $ASRMode = "AuditMode",
 
-    [Parameter(Mandatory = $true, 
-        ParameterSetName = 'DownloadOnly',
-        HelpMessage = 'Prepare deployment package by downloading all required binaries')]
+    [Parameter(Mandatory = $false)]
     [switch]
     $DownloadContent,
 
-    [Parameter(Mandatory = $true, 
-        ParameterSetName = 'DownloadOnly',
-        HelpMessage = 'The OS version for which we need to download binaires. Available values are "All","Windows7x64", "Windows8.1x64", "Windows10x64", "Windows2008R2", "Windows2012R2", "Windows2016", "Windows2019"')]
+    [Parameter(Mandatory = $false)]
     [ValidateSet("All", "Windows7x64", "Windows8.1x64", "Windows10x64", "Windows2008R2", "Windows2012R2", "Windows2016", "Windows2019")]
     [String]
     $OS
@@ -74,14 +41,13 @@ Param(
 
 
 
+################################
+#DO NOT CHANGE ANYTHING AFTER THAT POINT
 # Initialize global variables
 $global:WorkspaceID = $WorkspaceID
 $global:WorkspaceKey = $WorkspaceKey
 
 
-
-################################
-#DO NOT CHANGE ANYTHING AFTER THAT POINT
 switch ($ASRMode) {
     "AuditMode" { $global:ASRValue = "AuditMode" }
     "EnforcedMode" { $global:ASRValue = "Enabled" }
@@ -158,20 +124,14 @@ if (!$global:downloadOnly) {
             }
             $global:OSName = "Windows7x64"
             Install-Windows7
-            if ($global:EDR) {
-                Add-MachineTag
-            }
-            Test-MDATPEICAR
+
         }
         elseif (("7", "8", "10", "36", "37", "38") -contains $OSinfo.OperatingSystemSKU) {
             #Windows Server 2008 R2
             Write-Log "Windows Server 2008 R2"
             $global:OSName = "Windows2008R2"
             Install-Windows2008R2
-            if ($global:EDR) {
-                Add-MachineTag
-            }
-            Test-MDATPEICAR
+
         }
         else {
             Write-Log ("Unsupported SKU" + $OSinfo.OperatingSystemSKU + " (" + $OSinfo.Caption + ")") "FATAL"
@@ -192,10 +152,7 @@ if (!$global:downloadOnly) {
             }
             $global:OSName = "Windows8.1x64"
             Install-Windows81
-            if ($global:EDR) {
-                Add-MachineTag
-            }
-            Test-MDATPEICAR
+
         }
         elseif (("7", "8", "10", "36", "37", "38") -contains $OSinfo.OperatingSystemSKU) {
             #Windows Server 2012 R2
@@ -207,10 +164,7 @@ if (!$global:downloadOnly) {
             }
             $global:OSName = "Windows2012R2"
             Install-Windows2012R2
-            if ($global:EDR) {
-                Add-MachineTag
-            }
-            Test-MDATPEICAR
+
         }
         else {
             Write-Log ("Unsupported SKU" + $OSinfo.OperatingSystemSKU + " (" + $OSinfo.Caption + ")") "FATAL"
@@ -229,10 +183,7 @@ if (!$global:downloadOnly) {
             if ($global:EPP) {
                 Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
             }
-            if ($global:EDR) {
-                Add-MachineTag
-            }
-            Test-MDATPEICAR
+
         }
         elseif (("7", "8", "10", "36", "37", "38") -contains $OSinfo.OperatingSystemSKU) {
             if (([Convert]::ToInt32($OSinfo.BuildNumber) -lt 17763)) {
@@ -240,10 +191,7 @@ if (!$global:downloadOnly) {
                 Write-Log "Windows Server 2016"
                 $global:OSName = "Windows2016"
                 Install-Windows2016
-                if ($global:EDR) {
-                    Add-MachineTag
-                }
-                Test-MDATPEICAR
+
             }
             else {
                 #Windows Server 2019
@@ -253,10 +201,7 @@ if (!$global:downloadOnly) {
                 if ($global:EPP) {
                     Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
                 }
-                if ($global:EDR) {
-                    Add-MachineTag
-                }
-                Test-MDATPEICAR
+
             }   
 
         }
@@ -271,6 +216,12 @@ if (!$global:downloadOnly) {
         Write-Error ("Unsupported OS " + $OSinfo.Version + " " + $OSinfo.OperatingSystemSKU + " (" + $OSinfo.Caption + ")")
         Exit
     }
+
+    if ($global:EDR) {
+        Add-MachineTag
+    }
+    Confirm-MDATPInstallation
+    Test-MDATPEICAR    
 }
 else {
     
@@ -303,4 +254,5 @@ else {
             Write-Error "Unsupported OS selected"
         }
     }
+    Confirm-MDATPInstallation
 }
