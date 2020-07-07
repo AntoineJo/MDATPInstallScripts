@@ -36,6 +36,9 @@ Then when installing it will, depending on paramters
 - (optional) Add a machine tag
 - (roadmap) Troubleshoot connectivity problems
 
+WARNING:
+This script does not check if there is another antivirus installed, you should uninstall your existing Antimalware solution before installing/enabling SCEP/Defender Antivirus
+This script does not check, neither configure Windows Defender Firewall status, you should handle that by yourself as well
 
 -------------------------------------------
 REQUIREMENTS
