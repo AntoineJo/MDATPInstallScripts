@@ -1,6 +1,5 @@
 # DISCLAIMER
 # Script provided as-is without any garantee it will work and is not supported by Microsoft
-# version 1.0.1
 # authors Ajourn & thibou
 
 Function Write-Log {
@@ -48,8 +47,8 @@ Function Test-MDATPEICAR {
 }
 
 Function Confirm-MDATPInstallation {
-    if ( ($null -eq $global:currentpath) -or ($null -eq $global:resultsDir)) {
-        Write-Log "Current path not set. Exiting" "ERROR"
+    if ( ($null -eq $global:downloadLocation) -or ($null -eq $global:resultsDir)) {
+        Write-Log "Download location path not set. Exiting" "ERROR"
         return 
     }
 
@@ -58,8 +57,8 @@ Function Confirm-MDATPInstallation {
         $url = "https://live.sysinternals.com/psexec.exe"
 
         try {
-            (New-Object Net.WebClient).DownloadFile($url, ($global:currentpath + '\psexec.exe'))
-            if (!(Test-Path ($global:currentpath + "\psexec.exe"))) {
+            (New-Object Net.WebClient).DownloadFile($url, ($global:downloadLocation + '\psexec.exe'))
+            if (!(Test-Path ($global:downloadLocation + "\psexec.exe"))) {
                 Write-Log "Error downloading psexec.exe. Exiting"
                 return
             }
@@ -69,90 +68,104 @@ Function Confirm-MDATPInstallation {
             return
         }
     }
-
-    #Does not work on Windows 7
-    Write-Log "Test connection to WDAV backend as System"
-    Start-Process -FilePath ($global:currentpath + '\psexec.exe') -ArgumentList ("-accepteula", "-nobanner", "-s", ('"' + $Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe" -ValidateMapsConnection >"' + $global:resultsDir + '\mdav.log"')) -Wait -Verb runas
-
-    Write-Log "Extract WDAV configuration & support info"
-    if (Test-Path "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab") {
-        Remove-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab"
+    else {
+        Copy-Item ($global:currentpath + "\psexec.exe") ($global:downloadLocation + '\psexec.exe')  -Force
     }
-    Start-Process -FilePath ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe') -ArgumentList ("-GetFiles") -Wait -Verb runas
-    Copy-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab" ($global:resultsDir + '\MpSupportFiles.cab')
 
-    if (!(Test-Path ($global:currentpath + "\MDATPClientAnalyzer"))) {
-        Write-Log "MDATPClientAnalyzer.cmd not found in script directory. Donwloading it"
-        $url = "https://aka.ms/mdatpanalyzer"
-
+    if (!$global:downloadOnly) {
         try {
-            (New-Object Net.WebClient).DownloadFile($url, ($global:currentpath + '\MDATPClientAnalyzer.zip'))
-            if (!(Test-Path ($global:currentpath + "\MDATPClientAnalyzer.zip"))) {
-                Write-Log "Error downloading \MDATPClientAnalyzer.cmd. Exiting"
-                return
-            }
-            if (!(Test-Path ($global:currentpath + "\MDATPClientAnalyzer"))) {
-                New-Item -Path $global:currentpath -Name "MDATPClientAnalyzer" -ItemType "directory"
-            }
-            $expandBuiltIn = get-command Expand-Archive 2> $null
-            if ($null -ne $expandBuiltIn) {
-                Expand-Archive -Path ($global:currentpath + "\MDATPClientAnalyzer.zip") -DestinationPath ($global:currentpath + "\MDATPClientAnalyzer\")
-            }
-            else {
-                Expand-ZIPFile ($global:currentpath + "\MDATPClientAnalyzer.zip") ($global:currentpath + "\MDATPClientAnalyzer\")
+            #Does not work on Windows 7
+            if ("Windows10", "Windows2019", "Windows2016" -contains $global:OSName) {
+                Write-Log "Test connection to WDAV backend as System"
+                Start-Process -FilePath ($global:downloadLocation + '\psexec.exe') -ArgumentList ("-accepteula", "-nobanner", "-s", ('"' + $Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe" -ValidateMapsConnection >"' + $global:resultsDir + '\mdav.log"')) -Wait -Verb runas
+
+                Write-Log "Extract WDAV configuration & support info"
+                if (Test-Path "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab") {
+                    Remove-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab"
+                }
+                Start-Process -FilePath ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe') -ArgumentList ("-GetFiles") -Wait -Verb runas
+                Copy-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab" ($global:resultsDir + '\MpSupportFiles.cab') -Force
             }
         }
         catch {
-            Write-Log "Error downloading \MDATPClientAnalyzer.cmd. Exiting"
-            return
-        }   
+            Write-Log "Error testing MDAV" "ERROR"
+            Write-Log $_ "ERROR"
+        }
     }
 
-    Write-Log "Test connection to MDAV backend as System"
-    Start-Process -FilePath ($global:currentpath + '\MDATPClientAnalyzer\MDATPClientAnalyzer.cmd') -ArgumentList (">" + $global:currentpath + "\mdatp.log") -Wait -Verb runas
-    Copy-Item ($global:currentpath + '\MDATPClientAnalyzer\MDATPClientAnalyzerResult\') ($global:resultsDir) -Recurse 
+    if ($global:EDR -or $global:downloadOnly) {
+        if (!(Test-Path ($global:currentpath + "\MDATPClientAnalyzer.zip"))) {
+            Write-Log "MDATPClientAnalyzer.zip not found in script directory. Donwloading it"
+            $url = "https://aka.ms/mdatpanalyzer"
+
+            try {
+                (New-Object Net.WebClient).DownloadFile($url, ($global:downloadLocation + '\MDATPClientAnalyzer.zip'))
+                if (!(Test-Path ($global:downloadLocation + "\MDATPClientAnalyzer.zip"))) {
+                    Write-Log "Error downloading \MDATPClientAnalyzer.cmd. Exiting"
+                    return
+                }
+
+            }
+            catch {
+                Write-Log "Error downloading \MDATPClientAnalyzer.cmd. Exiting"
+                return
+            }   
+        }
+        else {
+            Copy-Item ($global:currentpath + "\MDATPClientAnalyzer.zip") ($global:downloadLocation + '\MDATPClientAnalyzer.zip')  -Force
+        }
+
+        if (!$global:downloadOnly) {
+            if (!(Test-Path ($global:downloadLocation + "\MDATPClientAnalyzer"))) {
+                New-Item -Path $global:downloadLocation -Name "MDATPClientAnalyzer" -ItemType "directory"
+            }
+            $expandBuiltIn = get-command Expand-Archive 2> $null
+            if ($null -ne $expandBuiltIn) {
+                Expand-Archive -Path ($global:downloadLocation + "\MDATPClientAnalyzer.zip") -DestinationPath ($global:downloadLocation + "\MDATPClientAnalyzer\") -Force
+            }
+            else {
+                Expand-ZIPFile ($global:downloadLocation + "\MDATPClientAnalyzer.zip") ($global:downloadLocation + "\MDATPClientAnalyzer\")
+            }
+
+            Write-Log "Test connection to MDATP backend as System"
+            if (Test-Path ($global:downloadLocation + '\MDATPClientAnalyzer\MDATPClientAnalyzer.cmd')) {
+                Start-Process -FilePath ($global:downloadLocation + '\MDATPClientAnalyzer\MDATPClientAnalyzer.cmd') -ArgumentList (">" + $global:resultsDir + "\mdatp.log") -Wait -Verb runas
+                Copy-Item ($global:downloadLocation + '\MDATPClientAnalyzer\MDATPClientAnalyzerResult\') ($global:resultsDir) -Recurse  -Force
+            }
+        }
+    }
 }
 
-Function Install-Windows7 {
+# Reference from https://www.howtogeek.com/tips/how-to-extract-zip-files-using-powershell/
+# Author TAYLOR GIBB
+function Expand-ZipFile {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $true, Position = 0)][string]$SourcePath,
+        [Parameter(Mandatory = $true, Position = 1)][string]$DestinationPath
+    )
 
-    $dotnetWebSource = "https://download.microsoft.com/download/B/A/4/BA4A7E71-2906-4B2D-A0E1-80CF16844F5F/dotNetFx45_Full_setup.exe"
+    try {
+        $shell = new-object -com shell.application
+        $zip = $shell.NameSpace($SourcePath)
+        foreach ($item in $zip.items()) {
+            $shell.Namespace($DestinationPath).copyhere($item)
+        }
+    }
+        
+    catch {
+        Write-Log ($_.Exception.Message) "WARNING"
+    }
+}
 
+Function downloadAndInstallSCEP {
     #SCEP alredy include KB3209361
     $scepWebSource = "http://wsus.ds.download.windowsupdate.com/c/msdownload/update/software/crup/2017/01/scepinstall_2c54f8168cc9d05422cde174e771147d527c92ba.exe"
 
+    #Install SCEP
+    try {
 
-    #KB4074598 Feb2018 monthly rollup replaced by full update of Windows 7, for that we need to install KB4534310 (that have KB4490628, KB4474419 and KB4536952 as prereq) - note that KB4474419 is also a prereq to MMA
-    #Update for customer XP & telemetry KB3080149
-    $kburl = @{KB4490628 = "http://download.windowsupdate.com/c/msdownload/update/software/secu/2019/03/windows6.1-kb4490628-x64_d3de52d6987f7c8bdc2c015dca69eac96047c76e.msu";
-        KB4474419        = "http://download.windowsupdate.com/c/msdownload/update/software/secu/2019/03/windows6.1-kb4474419-x64_6acf139f1eb84f60fcdeef3d4f81285e1edb45f9.msu";
-        KB4536952        = "http://download.windowsupdate.com/c/msdownload/update/software/secu/2020/01/windows6.1-kb4536952-x64_87f81056110003107fa0e0ec35a3b600ef300a14.msu";
-        KB4534310        = "http://download.windowsupdate.com/c/msdownload/update/software/secu/2020/01/windows6.1-kb4534310-x64_4dc78a6eeb14e2eac1ede7381f4a93658c8e2cdc.msu";
-        KB3080149        = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2015/08/windows6.1-kb3080149-x64_f25965cefd63a0188b1b6f4aad476a6bd28b68ce.msu"
-    }
-
-    $mmaWebSource = "https://go.microsoft.com/fwlink/?LinkId=828603"
-
-    $restartneeded = $false
-
-    if ($global:EDR) {
-        if (($null -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey)) {
-            Write-Host "Provide your Workspace ID : "
-            $global:WorkspaceID = Read-Host
-            Write-Host "Provide your Workspace Key : "
-            $global:WorkspaceKey = Read-Host
-            if (($null -eq $global:WorkspaceID -or "" -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey -or "" -eq $global:WorkspaceKey)) {
-                Write-Log "Workplace ID or Key are null. Fatal error exiting" "FATAL"
-                Write-Error "Workplace ID or Key are null. Fatal error exiting Windows config"
-                return
-            }
-        }
-
-    }
-
-    if ($global:EPP) {
-        #Install SCEP
-        try {
-
+        if ($global:EPP) {
             #Test if SCEP is already installed
             $scepProcess = get-process -ProcessName MsMpEng 2> $null
             $needinstall = $false
@@ -170,22 +183,28 @@ Function Install-Windows7 {
             else {
                 $needinstall = $true
             }
-            
-            if ($needinstall) {
-                if (!(Test-Path ($global:currentpath + '\scep.exe'))) {
-                    Write-Log "Download SCEP"
-                    (New-Object Net.WebClient).DownloadFile($scepWebSource, ($Env:TEMP + '\scep.exe'))
-                    Write-Log "download of SCEP succeded"
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\scep.exe') ($Env:TEMP + '\scep.exe')
-                }
+        }
 
+        if ($needinstall -or $global:downloadOnly) {
 
-                if (Test-Path ($Env:TEMP + '\scep.exe')) {
+            if (!(Test-Path ($global:currentpath + '\scep.exe'))) {
+                Write-Log "Download SCEP"
+                
+                (New-Object Net.WebClient).DownloadFile($scepWebSource, ($global:downloadLocation + '\scep.exe'))
+                Write-Log "download of SCEP succeded"
+            }
+            else {
+                if (!$global:downloadOnly) {
+                    #This is relevant only if we need to install it
+                    Copy-Item ($global:currentpath + '\scep.exe') ($global:downloadLocation + '\scep.exe')  -Force
+                }
+            }
+
+            if (!$global:downloadOnly) {
+                if (Test-Path ($global:downloadLocation + '\scep.exe')) {
                     Write-Log "Installing SCEP"
                     $policyFile = ($global:currentpath + "\SCEPProfile.xml")
-                    Start-Process -FilePath ($Env:TEMP + '\scep.exe') -ArgumentList ("/s", "/policy $policyFile", "/sqmoptin") -Verb runas
+                    Start-Process -FilePath ($global:downloadLocation + '\scep.exe') -ArgumentList ("/s", "/policy $policyFile", "/sqmoptin") -Verb runas
                     Write-Log "SCEP install in background. Wait for it to finish"
                     Start-Sleep 30
                     $time = 0
@@ -196,32 +215,47 @@ Function Install-Windows7 {
                         Start-Sleep 30
                         Write-Log "SCEP install in background. Wait for it to finish T=$time"
                     }
-                    Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')
+                    Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')  -Force
                 }
                 else {
                     Write-Log "Error downloading SCEP agent"
                 }
             }
         }
-        catch {
-            Write-Log "Error downloading or installing SCEP agent" "ERROR"
-            Write-Log $_ "ERROR"
-            Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')
-        }
+    }
+    catch {
+        Write-Log "Error downloading or installing SCEP agent" "ERROR"
+        Write-Log $_ "ERROR"
+        Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')  -Force
+    }
 
+    if (!$global:downloadOnly) {
         Start-Sleep 20
         Write-Log "Force AV definition update"
         Start-Process -FilePath 'C:\Program Files\Microsoft Security Client\MpCmdRun.exe' -ArgumentList ("-SignatureUpdate", "-MMPC") -Wait -Verb runas
-    
+
         Write-Log "Getting Windows Update logs"
-        Copy-Item "C:\Windows\WindowsUpdate.log" ($global:resultsDir + '\')
+        Copy-Item "C:\Windows\WindowsUpdate.log" ($global:resultsDir + '\')  -Force
+    }
+}
+
+Function getOMSWorkspaceInfo {
+
+    if (($null -eq $global:WorkspaceID -or "" -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey -or "" -eq $global:WorkspaceKey)) {
+        Write-Log "Workplace ID or Key are null. Fatal error exiting" "FATAL"
+        Write-Error "Workplace ID or Key are null. Fatal error exiting Windows config"
+        exit
     }
 
+}
 
-    if ($global:EDR) {
-        #Install NET4.5
-        try {
+Function downloadAndInstallDOTNET45 {
+    $restartneeded = $false
+    $dotnetWebSource = "https://download.microsoft.com/download/E/2/1/E21644B5-2DF2-47C2-91BD-63C560427900/NDP452-KB2901907-x86-x64-AllOS-ENU.exe"
 
+    try {
+
+        if ($global:EDR) {
             Write-Log "Check if .NET Framework 4.5 is already installed"
             $needinstall = $false
             if (Test-Path 'HKLM:\Software\microsoft\NET Framework Setup\NDP\v4\Full') {
@@ -232,55 +266,138 @@ Function Install-Windows7 {
                 $needinstall = $true
                 Write-Log ".Net 4 seems not to be installed"
             }
+        }
 
-            if ($needinstall) {
-                if (!(Test-Path ($global:currentpath + '\dotnet4.5.exe'))) {
-                    Write-Log "Download .NET Framework 4.5"
-                    (New-Object Net.WebClient).DownloadFile($dotnetWebSource, ($Env:TEMP + '\dotnet4.5.exe'))
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\dotnet4.5.exe') ($Env:TEMP + '\dotnet4.5.exe')
-                }
+        if ($needinstall -or $global:downloadOnly) {
 
-                if (Test-Path ($Env:TEMP + '\dotnet4.5.exe')) {
+            if (!(Test-Path ($global:currentpath + '\dotnet4.5.exe'))) {
+                Write-Log "Download .NET Framework 4.5"
+                (New-Object Net.WebClient).DownloadFile($dotnetWebSource, ($global:downloadLocation + '\dotnet4.5.exe'))
+            }
+            else {
+                if (!$global:downloadOnly) {
+                    Copy-Item ($global:currentpath + '\dotnet4.5.exe') ($global:downloadLocation + '\dotnet4.5.exe')  -Force
+                }
+            }
+
+            if (!$global:downloadOnly) {
+                if (Test-Path ($global:downloadLocation + '\dotnet4.5.exe')) {
                     Write-Log "download of DotNet 4.5 succeded"
                     Write-Log "Installing DotNet 4.5"
-                    Start-Process -FilePath ($Env:TEMP + '\dotnet4.5.exe') -ArgumentList ("/q", "/norestart") -Wait -Verb runas
+                    Start-Process -FilePath ($global:downloadLocation + '\dotnet4.5.exe') -ArgumentList ("/q", "/norestart") -Wait -Verb runas
                     Write-Log "DotNet 4.5 install result $LastExitCode"
                     $restartneeded = $true
-                    Copy-Item "$env:temp\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')
+                    Copy-Item "$global:downloadLocation\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')  -Force
                 }
                 else {
                     Write-Log "Error downloading Dot Net 4.5"
                 }
             }
         }
-        catch {
-            Write-Log "Error downloading or installing Dot Net 4.5" "ERROR"
-            Write-Log $_ "ERROR"
-            Copy-Item "$env:temp\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')
+    }
+    catch {
+        Write-Log "Error downloading or installing Dot Net 4.5" "ERROR"
+        Write-Log $_ "ERROR"
+        Copy-Item "$global:downloadLocation\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')  -Force
+    }
+
+    return $restartneeded
+}
+
+Function downloadAndInstallMMA {
+    $mmaWebSource = "https://go.microsoft.com/fwlink/?LinkId=828603"
+    $restartneeded = $false
+
+    try {
+            
+        Write-Log "Check if MMA Agent is already installed"
+        $needinstall = $false
+        $needinstall = !(Test-Path -Path "HKLM:\Software\Classes\AgentConfigManager.MgmtSvcCfg")
+
+        if ($needinstall -or $global:downloadOnly) {
+
+            Write-Log "MMA not already installed"
+            if (!(Test-Path ($global:currentpath + '\mma.exe'))) {
+                Write-Log "Download MMA"
+                (New-Object Net.WebClient).DownloadFile($mmaWebSource, ($global:downloadLocation + '\mma.exe'))
+            }
+            else {
+                if (!$global:downloadOnly) {
+                    Copy-Item ($global:currentpath + '\mma.exe') ($global:downloadLocation + '\mma.exe')  -Force
+                }
+            }
+            
+            if (!$global:downloadOnly) {
+                if (Test-Path ($global:downloadLocation + '\mma.exe')) {
+                    Write-Log "download of MMA succeded"
+                    Write-Log "Extracting MMA into %TEMP%\MMA"
+                    Start-Process -FilePath ($global:downloadLocation + '\mma.exe') -ArgumentList ("/C", "/T:$global:downloadLocation\MMA\") -Wait -Verb runas
+                    Write-Log "Installing MMA"
+                    Start-Process -FilePath ($global:downloadLocation + '\MMA\setup.exe') -ArgumentList ("/qn", "NOAPM=1", "ADD_OPINSIGHTS_WORKSPACE=1", "OPINSIGHTS_WORKSPACE_AZURE_CLOUD_TYPE=0", 'OPINSIGHTS_WORKSPACE_ID="' + $global:WorkspaceID + '"', 'OPINSIGHTS_WORKSPACE_KEY="' + $global:WorkspaceKey + '"', 'AcceptEndUserLicenseAgreement=1') -Wait -Verb runas
+                
+                    Write-Log "MMA install result $LastExitCode"
+                }
+                else {
+                    Write-Log "Error downloading MMA"
+                }
+            }
         }
+        else {
+            Write-Log "MMA Agent is already installed, so we add MDATP workspace to the existing MMA agent"
+            $AgentCfg = New-Object -ComObject AgentConfigManager.MgmtSvcCfg
+            $AgentCfg.AddCloudWorkspace($global:WorkspaceID, $global:WorkspaceKey)
+            $AgentCfg.ReloadConfiguration()
+        }
+    }
+    catch {
+        Write-Log "Error downloading or installing MMA"
+        Write-Log $_ "ERROR"
+    }
 
-        #Install missing KB
+    return $restartneeded
+}
+
+Function downloadAndInstallKB {
+    [CmdletBinding()]
+    param (
+        [hashtable]
+        $kburls,
+        [string]
+        $OSName
+    )
+
+    $restartneeded = $false
+
+    if (!$global:downloadOnly) {
         $installedkb = Get-HotFix
-        foreach ($kb in $kburl.Keys) {
-            $installed = $false
-            $installed = $installedkb | % { if ($_.HotfixID -eq $kb) { $true } }
-            if (!$installed) {
-                try {
+    }
+    else {
+        $installedkb = @{}
+    }
+    foreach ($kb in $kburl.Keys) {
 
-                    if (!(Test-Path ($global:currentpath + '\' + $kb + '_win7_x64.msu'))) {
-                        write-log ($kb + " missing from OS. Launching download from " + $kburl[$kb])
-                        (New-Object Net.WebClient).DownloadFile($kburl[$kb], ($Env:TEMP + '\' + $kb + '.msu'))
-                    }
-                    else {
-                        Copy-Item ($global:currentpath + '\' + $kb + '_win7_x64.msu') ($Env:TEMP + '\' + $kb + '.msu')
-                    }
+        $installed = $false
+        
+        $installed = $installedkb | ForEach-Object { if ($_.HotfixID -eq $kb) { $true } }
+        
+        if (!$installed -or $global:downloadOnly) {
+            try {
 
-                    if (Test-Path ($Env:TEMP + '\' + $kb + '.msu')) {
+                if (!(Test-Path ($global:currentpath + '\' + $kb + $OSName + '.msu'))) {
+                    write-log ($kb + " missing from OS. Launching download from " + $kburl[$kb])
+                    (New-Object Net.WebClient).DownloadFile($kburl[$kb], ($global:downloadLocation + '\' + $kb + $OSName + '.msu'))
+                }
+                else {
+                    if (!$global:downloadOnly) {
+                        Copy-Item ($global:currentpath + '\' + $kb + $OSName + '.msu') ($global:downloadLocation + '\' + $kb + $OSName + '.msu')  -Force
+                    }
+                }
+
+                if (!$global:downloadOnly) {
+                    if (Test-Path ($global:downloadLocation + '\' + $kb + $OSName + '.msu')) {
                         Write-Log "download of $kb succeded"
                         Write-Log "Installing $kb"
-                        Start-Process -FilePath "wusa.exe" -ArgumentList (($Env:TEMP + '\' + $kb + '.msu'), "/quiet", "/norestart") -Wait -Verb runas
+                        Start-Process -FilePath "wusa.exe" -ArgumentList (($global:downloadLocation + '\' + $kb + $OSName + '.msu'), "/quiet", "/norestart") -Wait -Verb runas
                         Write-Log "$kb install result $LastExitCode"
                         $restartneeded = $true
                     }
@@ -288,55 +405,50 @@ Function Install-Windows7 {
                         Write-Log "Error downloading $kb "
                     }
                 }
-                catch {
-                    Write-Log "Error downloading or installing $kb" "ERROR"
-                    Write-Log $_ "ERROR"
-                }
+            }
+            catch {
+                Write-Log "Error downloading or installing $kb" "ERROR"
+                Write-Log $_ "ERROR"
             }
         }
-    
+    }
+
+    return $restartneeded
+}
+
+Function Install-Windows7 {
+
+    Write-Log "Handle Windows 7"
+
+    #KB4074598 Feb2018 monthly rollup replaced by full update of Windows 7, for that we need to install KB4534310 (that have KB4490628, KB4474419 and KB4536952 as prereq) - note that KB4474419 is also a prereq to MMA
+    #Update for customer XP & telemetry KB3080149
+    $kburl = @{KB4490628 = "http://download.windowsupdate.com/c/msdownload/update/software/secu/2019/03/windows6.1-kb4490628-x64_d3de52d6987f7c8bdc2c015dca69eac96047c76e.msu";
+        KB4474419        = "http://download.windowsupdate.com/c/msdownload/update/software/secu/2019/03/windows6.1-kb4474419-x64_6acf139f1eb84f60fcdeef3d4f81285e1edb45f9.msu";
+        KB4536952        = "http://download.windowsupdate.com/c/msdownload/update/software/secu/2020/01/windows6.1-kb4536952-x64_87f81056110003107fa0e0ec35a3b600ef300a14.msu";
+        KB4534310        = "http://download.windowsupdate.com/c/msdownload/update/software/secu/2020/01/windows6.1-kb4534310-x64_4dc78a6eeb14e2eac1ede7381f4a93658c8e2cdc.msu";
+        KB3080149        = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2015/08/windows6.1-kb3080149-x64_f25965cefd63a0188b1b6f4aad476a6bd28b68ce.msu"
+    }
+
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        getOMSWorkspaceInfo
+    }
+
+    if ($global:EPP -or $global:downloadOnly) {
+        $restartneeded = downloadAndInstallSCEP
+    }
+
+
+    if ($global:EDR -or $global:downloadOnly) {
+        #Install NET4.5
+        $restartneeded = downloadAndInstallDOTNET45
+
+        #Install missing KB
+        $restartneeded = downloadAndInstallKB $kburl $global:OSName
 
         #Install MMA Agent
-        try {
-            
-            Write-Log "Check if MMA Agent is already installed"
-            $needinstall = $false
-            $needinstall = !(Test-Path -Path "HKLM:\Software\Classes\AgentConfigManager.MgmtSvcCfg")
-
-            if ($needinstall) {
-                Write-Log "MMA not already installed"
-                if (!(Test-Path ($global:currentpath + '\mma.exe'))) {
-                    Write-Log "Download MMA"
-                    (New-Object Net.WebClient).DownloadFile($mmaWebSource, ($Env:TEMP + '\mma.exe'))
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\mma.exe') ($Env:TEMP + '\mma.exe')
-                }
-                
-                if (Test-Path ($Env:TEMP + '\mma.exe')) {
-                    Write-Log "download of MMA succeded"
-                    Write-Log "Extracting MMA into %TEMP%\MMA"
-                    Start-Process -FilePath ($Env:TEMP + '\mma.exe') -ArgumentList ("/C", "/T:$Env:TEMP\MMA\") -Wait -Verb runas
-                    Write-Log "Installing MMA"
-                    Start-Process -FilePath ($Env:TEMP + '\MMA\setup.exe') -ArgumentList ("/qn", "NOAPM=1", "ADD_OPINSIGHTS_WORKSPACE=1", "OPINSIGHTS_WORKSPACE_AZURE_CLOUD_TYPE=0", 'OPINSIGHTS_WORKSPACE_ID="' + $global:WorkspaceID + '"', 'OPINSIGHTS_WORKSPACE_KEY="' + $global:WorkspaceKey + '"', 'AcceptEndUserLicenseAgreement=1') -Wait -Verb runas
-                    
-                    Write-Log "MMA install result $LastExitCode"
-                }
-                else {
-                    Write-Log "Error downloading MMA"
-                }
-            }
-            else {
-                Write-Log "MMA Agent is already installed, so we add MDATP workspace to the existing MMA agent"
-                $AgentCfg = New-Object -ComObject AgentConfigManager.MgmtSvcCfg
-                $AgentCfg.AddCloudWorkspace($global:WorkspaceID, $global:WorkspaceKey)
-                $AgentCfg.ReloadConfiguration()
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing MMA"
-            Write-Log $_ "ERROR"
-        }
+        $restartneeded = downloadAndInstallMMA
     }
 
     if ($restartneeded) {
@@ -353,227 +465,32 @@ Function Install-Windows7 {
         } while(!$fin) #>
     }
 }
-
 Function Install-Windows81 {
     
-    $dotnetWebSource = "https://download.microsoft.com/download/B/A/4/BA4A7E71-2906-4B2D-A0E1-80CF16844F5F/dotNetFx45_Full_setup.exe"
-
-    #SCEP already include KB3209361
-    $scepWebSource = "http://wsus.ds.download.windowsupdate.com/c/msdownload/update/software/crup/2017/01/scepinstall_2c54f8168cc9d05422cde174e771147d527c92ba.exe"
+    Write-Log "Handle Windows 8.1"
 
     #Update for customer XP & telemetry KB3080149
     $kburl = @{KB3080149 = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2015/08/windows8.1-kb3080149-x64_4254355747ba7cf6974bcfe27c4c34a042e3b07e.msu" }
 
-    $mmaWebSource = "https://go.microsoft.com/fwlink/?LinkId=828603"
-
     $restartneeded = $false
-
     if ($global:EDR) {
-        if (($null -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey)) {
-            Write-Host "Provide your Workspace ID : "
-            $global:WorkspaceID = Read-Host
-            Write-Host "Provide your Workspace Key : "
-            $global:WorkspaceKey = Read-Host
-            if (($null -eq $global:WorkspaceID -or "" -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey -or "" -eq $global:WorkspaceKey)) {
-                Write-Log "Workplace ID or Key are null. Fatal error exiting" "FATAL"
-                Write-Error "Workplace ID or Key are null. Fatal error exiting Windows config"
-                return
-            }
-        }
+        getOMSWorkspaceInfo
+    }
+
+    if ($global:EPP -or $global:downloadOnly) {
+        $restartneeded = downloadAndInstallSCEP
     }
 
 
-    if ($global:EPP) {
-        #Install SCEP
-        try {
-
-            #Test if SCEP is already installed
-            $scepProcess = get-process -ProcessName MsMpEng 2> $null
-            $needinstall = $false
-            if ($null -ne $scepProcess) {
-                Write-Log "SCEP is already installed and running. Checking version"
-                if ($scepProcess.ProductVersion -ne "4.10.0209.0") {
-                    Write-Log ("SCEP is not up to date, installed version is " + $scepProcess.ProductVersion)
-                    Write-Log "Need to update SCEP"
-                    $needinstall = $true
-                }
-                else {
-                    Write-Log "SCEP is installed and up to date"
-                }
-            }
-            else {
-                $needinstall = $true
-            }
-        
-            if ($needinstall) {
-                if (!(Test-Path ($global:currentpath + '\scep.exe'))) {
-                    Write-Log "Download SCEP"
-                    (New-Object Net.WebClient).DownloadFile($scepWebSource, ($Env:TEMP + '\scep.exe'))
-                    Write-Log "download of SCEP succeded"
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\scep.exe') ($Env:TEMP + '\scep.exe')
-                }
-        
-                if (Test-Path ($Env:TEMP + '\scep.exe')) {
-                    Write-Log "Download of SCEP succeeded"
-                    Write-Log "Installing SCEP"
-                    $policyFile = ($global:currentpath + "\SCEPProfile.xml")
-                    Start-Process -FilePath ($Env:TEMP + '\scep.exe') -ArgumentList ("/s", "/policy $policyFile", "/sqmoptin") -Verb runas
-                    Write-Log "SCEP install in background. Wait for it to finish"
-                    Start-Sleep 30
-                    $time = 0
-                    $scepProcess = get-process -ProcessName MsMpEng 2> $null
-                    while (($null -eq $scepProcess) -and ($time -lt 300)) {
-                        $scepProcess = get-process -ProcessName MsMpEng 2> $null
-                        $time += 30
-                        Start-Sleep 30
-                        Write-Log "SCEP install in background. Wait for it to finish T=$time"
-                    }
-                    Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')
-                }
-                else {
-                    Write-Log "Error downloading SCEP agent"
-                }
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing SCEP agent" "ERROR"
-            Write-Log $_ "ERROR"
-            Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')
-        }
-
-        Start-Sleep 20
-        Write-Log "Force AV definition update"
-        Start-Process -FilePath 'C:\Program Files\Microsoft Security Client\MpCmdRun.exe' -ArgumentList ("-SignatureUpdate", "-MMPC") -Wait -Verb runas
-    
-        Write-Log "Getting Windows Update logs"
-        Copy-Item "C:\Windows\WindowsUpdate.log" ($global:resultsDir + '\')
-    }
-
-    if ($global:EDR) {
-        #Install NET4.5
-        try {
-
-            Write-Log "Check if .NET Framework 4.5 is already installed"
-            $needinstall = $false
-            if (Test-Path 'HKLM:\Software\microsoft\NET Framework Setup\NDP\v4\Full') {
-                $needinstall = !((Get-ItemProperty 'HKLM:\Software\microsoft\NET Framework Setup\NDP\v4\Full' -Name Version).Version -ge "4.5")
-                Write-Log (".Net 4 installed version is " + (Get-ItemProperty 'HKLM:\Software\microsoft\NET Framework Setup\NDP\v4\Full' -Name Version).Version)
-            }
-            else {
-                $needinstall = $true
-                Write-Log ".Net 4.5 seems not to be installed"
-            }
-
-            if ($needinstall) {
-                if (!(Test-Path ($global:currentpath + '\dotnet4.5.exe'))) {
-                    Write-Log "Download .NET Framework 4.5"
-                    (New-Object Net.WebClient).DownloadFile($dotnetWebSource, ($Env:TEMP + '\dotnet4.5.exe'))
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\dotnet4.5.exe') ($Env:TEMP + '\dotnet4.5.exe')
-                }
-
-                if (Test-Path ($Env:TEMP + '\dotnet4.5.exe')) {
-                    Write-Log "download of DotNet 4.5 succeded"
-                    Write-Log "Installing DotNet 4.5"
-                    Start-Process -FilePath ($Env:TEMP + '\dotnet4.5.exe') -ArgumentList ("/q", "/norestart") -Wait -Verb runas
-                    Write-Log "DotNet 4.5 install result $LastExitCode"
-                    $restartneeded = $true
-                    Copy-Item "$env:temp\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')
-                }
-                else {
-                    Write-Log "Error downloading Dot Net 4.5"
-                }
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing Dot Net 4.5" "ERROR"
-            Write-Log $_ "ERROR"
-            Copy-Item "$env:temp\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')
-        }
+    if ($global:EDR -or $global:downloadOnly) {
+        #Install NET4.5 is not needed as already part of Windows 8.1 & Server 2012R2
+        #$restartneeded = downloadAndInstallDOTNET45
 
         #Install missing KB
-        $installedkb = Get-HotFix
-        foreach ($kb in $kburl.Keys) {
-            $installed = $false
-            $installed = $installedkb | % { if ($_.HotfixID -eq $kb) { $true } }
-            if (!$installed) {
-                try {
-                    if (!(Test-Path ($global:currentpath + '\' + $kb + '_win81_x64.msu'))) {
-                        write-log ($kb + " missing from OS. Launching download from " + $kburl[$kb])
-                        (New-Object Net.WebClient).DownloadFile($kburl[$kb], ($Env:TEMP + '\' + $kb + '.msu'))
-                    }
-                    else {
-                        Copy-Item ($global:currentpath + '\' + $kb + '_win81_x64.msu') ($Env:TEMP + '\' + $kb + '.msu')
-                    }
-
-
-                    if (Test-Path ($Env:TEMP + '\' + $kb + '.msu')) {
-                        Write-Log "download of $kb succeded"
-                        Write-Log "Installing $kb"
-                        Start-Process -FilePath "wusa.exe" -ArgumentList (($Env:TEMP + '\' + $kb + '.msu'), "/quiet", "/norestart") -Wait -Verb runas
-                        Write-Log "$kb install result $LastExitCode"
-                        $restartneeded = $true
-                    }
-                    else {
-                        Write-Log "Error downloading $kb "
-                    }
-                }
-                catch {
-                    Write-Log "Error downloading or installing $kb" "ERROR"
-                    Write-Log $_ "ERROR"
-                }
-            }
-            else {
-                Write-Log "All required KBs are installed"
-            }
-        }
-
+        $restartneeded = downloadAndInstallKB $kburl $global:OSName
 
         #Install MMA Agent
-        try {
-        
-            Write-Log "Check if MMA Agent is already installed"
-            $needinstall = $false
-            $needinstall = !(Test-Path -Path "HKLM:\Software\Classes\AgentConfigManager.MgmtSvcCfg")
-
-            if ($needinstall) {
-                Write-Log "MMA not already installed"
-                if (!(Test-Path ($global:currentpath + '\mma.exe'))) {
-                    Write-Log "Download MMA"
-                    (New-Object Net.WebClient).DownloadFile($mmaWebSource, ($Env:TEMP + '\mma.exe'))
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\mma.exe') ($Env:TEMP + '\mma.exe')
-                }
-
-
-                if (Test-Path ($Env:TEMP + '\mma.exe')) {
-                    Write-Log "download of MMA succeded"
-                    Write-Log "Extracting MMA into %TEMP%\MMA"
-                    Start-Process -FilePath ($Env:TEMP + '\mma.exe') -ArgumentList ("/C", "/T:$Env:TEMP\MMA\") -Wait -Verb runas
-                    Write-Log "Installing MMA"
-                    Start-Process -FilePath ($Env:TEMP + '\MMA\setup.exe') -ArgumentList ("/qn", "NOAPM=1", "ADD_OPINSIGHTS_WORKSPACE=1", "OPINSIGHTS_WORKSPACE_AZURE_CLOUD_TYPE=0", 'OPINSIGHTS_WORKSPACE_ID="' + $global:WorkspaceID + '"', 'OPINSIGHTS_WORKSPACE_KEY="' + $global:WorkspaceKey + '"', 'AcceptEndUserLicenseAgreement=1') -Wait -Verb runas
-                
-                    Write-Log "MMA install result $LastExitCode"
-                }
-                else {
-                    Write-Log "Error downloading MMA"
-                }
-            }
-            else {
-                Write-Log "MMA Agent is already installed, so we add MDATP workspace to the existing MMA agent"
-                $AgentCfg = New-Object -ComObject AgentConfigManager.MgmtSvcCfg
-                $AgentCfg.AddCloudWorkspace($global:WorkspaceID, $global:WorkspaceKey)
-                $AgentCfg.ReloadConfiguration()
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing MMA"
-            Write-Log $_ "ERROR"
-        }
+        $restartneeded = downloadAndInstallMMA
     }
 
     if ($restartneeded) {
@@ -593,8 +510,15 @@ Function Install-Windows81 {
     }
 }
 
+Function Get-AVInformation {
+    get-wmiObject AntivirusProduct -Namespace root\SecurityCenter2 > $ENV:TEMP + '\MDATP\WMI_Antivirus.log'
+    get-
+}
+
 Function Install-Windows10 {
     
+    Write-Log "Handle Windows 10"
+
     if ($global:EPP) {
         # Test if MDAV is already installed and running
         $restartneeded = $false
@@ -629,8 +553,13 @@ Function Install-Windows10 {
         try {
             if (Test-Path $global:OnboardingPackage) {
                 Write-Log "Onboarding package detected, proceed with onboarding"
-                Expand-Archive -Path $global:OnboardingPackage -DestinationPath $global:currentpath -Force
-                Start-Process -FilePath ($global:currentpath + "\WindowsDefenderATPLocalOnboardingScript.cmd") -Wait -Verb RunAs
+                Expand-Archive -Path $global:OnboardingPackage -DestinationPath $ENV:TEMP -Force
+                #Edit cmd file to transform it to automated
+                $file = get-content ($ENV:TEMP+"\WindowsDefenderATPLocalOnboardingScript.cmd")
+                $file[1] = "GOTO SCRIPT_START"
+                $file.replace("pause","") > ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd")
+
+                Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd") -Wait -Verb RunAs
                 Write-Log "Onboarding completed" "SUCCESS"
             }
             else {
@@ -663,227 +592,36 @@ Function Install-Windows10 {
 
 Function Install-Windows2008R2 {
 
+    Write-Log "Handle Windows Server 2008 R2"
+
     $restartneeded = $false
-
-
-    $dotnetWebSource = "https://download.microsoft.com/download/B/A/4/BA4A7E71-2906-4B2D-A0E1-80CF16844F5F/dotNetFx45_Full_setup.exe"
-
-    #SCEP alredy include KB3209361
-    $scepWebSource = "http://wsus.ds.download.windowsupdate.com/c/msdownload/update/software/crup/2017/01/scepinstall_2c54f8168cc9d05422cde174e771147d527c92ba.exe"
 
     #KB4074598 Feb2018 monthly rollup replaced by full update of Windows 2008 R2, for that we need to install KB410378 (replacement for required KB4074598) and KB3125574 (replacement for required KB3080149)
 
     $kburl = @{KB4103718 = "http://download.windowsupdate.com/d/msdownload/update/software/secu/2018/05/windows6.1-kb4103718-x64_c051268978faef39e21863a95ea2452ecbc0936d.msu";
-        KB3125574        = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2016/05/windows6.1-kb3125574-v4-x64_2dafb1d203c8964239af3048b5dd4b1264cd93b9.msu"
+               KB3125574 = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2016/05/windows6.1-kb3125574-v4-x64_2dafb1d203c8964239af3048b5dd4b1264cd93b9.msu"
     }
 
-    $mmaWebSource = "https://go.microsoft.com/fwlink/?LinkId=828603"
+    
 
     if ($global:EDR) {
-        if (($null -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey)) {
-            Write-Host "Provide your Workspace ID : "
-            $global:WorkspaceID = Read-Host
-            Write-Host "Provide your Workspace Key : "
-            $global:WorkspaceKey = Read-Host
-            if (($null -eq $global:WorkspaceID -or "" -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey -or "" -eq $global:WorkspaceKey)) {
-                Write-Log "Workplace ID or Key are null. Fatal error exiting" "FATAL"
-                Write-Error "Workplace ID or Key are null. Fatal error exiting Windows config"
-                exit
-            }
-        }
+        getOMSWorkspaceInfo
     }
 
-    if ($global:EPP) {
-        #Install SCEP
-        try {
-
-            #Test if SCEP is already installed
-            $scepProcess = get-process -ProcessName MsMpEng 2> $null
-            $needinstall = $false
-            if ($null -ne $scepProcess) {
-                Write-Log "SCEP is already installed and running. Checking version"
-                if ($scepProcess.ProductVersion -ne "4.10.0209.0") {
-                    Write-Log ("SCEP is not up to date, installed version is " + $scepProcess.ProductVersion)
-                    Write-Log "Need to update SCEP"
-                    $needinstall = $true
-                }
-                else {
-                    Write-Log "SCEP is installed and up to date"
-                }
-            }
-            else {
-                $needinstall = $true
-            }
-        
-            if ($needinstall) {
-                if (!(Test-Path ($global:currentpath + '\scep.exe'))) {
-                    Write-Log "Download SCEP"
-                    (New-Object Net.WebClient).DownloadFile($scepWebSource, ($Env:TEMP + '\scep.exe'))
-                    Write-Log "download of SCEP succeded"
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\scep.exe') ($Env:TEMP + '\scep.exe')
-                }
-        
-                if (Test-Path ($Env:TEMP + '\scep.exe')) {
-                    Write-Log "download of SCEP succeded"
-                    Write-Log "Installing SCEP"
-                    $policyFile = ($global:currentpath + "\SCEPProfile.xml")
-                    Start-Process -FilePath ($Env:TEMP + '\scep.exe') -ArgumentList ("/s", "/policy $policyFile", "/sqmoptin") -Verb runas
-                    Write-Log "SCEP install in background. Wait for it to finish"
-                    Start-Sleep 30
-                    $time = 0
-                    $scepProcess = get-process -ProcessName MsMpEng 2> $null
-                    while (($null -eq $scepProcess) -and ($time -lt 300)) {
-                        $scepProcess = get-process -ProcessName MsMpEng 2> $null
-                        $time += 30
-                        Start-Sleep 30
-                        Write-Log "SCEP install in background. Wait for it to finish T=$time"
-                    }
-                    Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')
-                }
-                else {
-                    Write-Log "Error downloading SCEP agent"
-                }
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing SCEP agent" "ERROR"
-            Write-Log $_ "ERROR"
-            Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')
-        }
-
-        Start-Sleep 20
-        Write-Log "Force AV definition update"
-        Start-Process -FilePath 'C:\Program Files\Microsoft Security Client\MpCmdRun.exe' -ArgumentList ("-SignatureUpdate", "-MMPC") -Wait -Verb runas
-
-        Write-Log "Getting Windows Update logs"
-        Copy-Item "C:\Windows\WindowsUpdate.log" ($global:resultsDir + '\')
+    if ($global:EPP -or $global:downloadOnly) {
+        $restartneeded = downloadAndInstallSCEP
     }
 
-    if ($global:EDR) {
+
+    if ($global:EDR -or $global:downloadOnly) {
         #Install NET4.5
-        try {
-
-            Write-Log "Check if .NET Framework 4.5 is already installed"
-            $needinstall = $false
-            if (Test-Path 'HKLM:\Software\microsoft\NET Framework Setup\NDP\v4\Full') {
-                $needinstall = !((Get-ItemProperty 'HKLM:\Software\microsoft\NET Framework Setup\NDP\v4\Full' -Name Version).Version -ge "4.5")
-                Write-Log (".Net 4 installed version is " + (Get-ItemProperty 'HKLM:\Software\microsoft\NET Framework Setup\NDP\v4\Full' -Name Version).Version)
-            }
-            else {
-                $needinstall = $true
-                Write-Log ".Net 4 seems not to be installed"
-            }
-
-            if ($needinstall) {
-                if (!(Test-Path ($global:currentpath + '\dotnet4.5.exe'))) {
-                    Write-Log "Download .NET Framework 4.5"
-                    (New-Object Net.WebClient).DownloadFile($dotnetWebSource, ($Env:TEMP + '\dotnet4.5.exe'))
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\dotnet4.5.exe') ($Env:TEMP + '\dotnet4.5.exe')
-                }
-
-
-                if (Test-Path ($Env:TEMP + '\dotnet4.5.exe')) {
-                    Write-Log "download of DotNet 4.5 succeded"
-                    Write-Log "Installing DotNet 4.5"
-                    Start-Process -FilePath ($Env:TEMP + '\dotnet4.5.exe') -ArgumentList ("/q", "/norestart") -Wait -Verb runas
-                    Write-Log "DotNet 4.5 install result $LastExitCode"
-                    $restartneeded = $true
-                    Copy-Item "$env:temp\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')
-                }
-                else {
-                    Write-Log "Error downloading Dot Net 4.5"
-                }
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing Dot Net 4.5" "ERROR"
-            Write-Log $_ "ERROR"
-            Copy-Item "$env:temp\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')
-        }
+        $restartneeded = downloadAndInstallDOTNET45
 
         #Install missing KB
-        $installedkb = Get-HotFix
-        foreach ($kb in $kburl.Keys) {
-            $installed = $false
-            $installed = $installedkb | % { if ($_.HotfixID -eq $kb) { $true } }
-            if (!$installed) {
-                try {
-                    if (!(Test-Path ($global:currentpath + '\' + $kb + '_win2008R2_x64.msu'))) {
-                        write-log ($kb + " missing from OS. Launching download from " + $kburl[$kb])
-                        (New-Object Net.WebClient).DownloadFile($kburl[$kb], ($Env:TEMP + '\' + $kb + '.msu'))
-                    }
-                    else {
-                        Copy-Item ($global:currentpath + '\' + $kb + '_win2008R2_x64.msu') ($Env:TEMP + '\' + $kb + '.msu')
-                    }
-
-
-                    if (Test-Path ($Env:TEMP + '\' + $kb + '.msu')) {
-                        Write-Log "download of $kb succeeded"
-                        Write-Log "Installing $kb"
-                        Start-Process -FilePath "wusa.exe" -ArgumentList (($Env:TEMP + '\' + $kb + '.msu'), "/quiet", "/norestart") -Wait -Verb runas
-                        Write-Log "$kb install result $LastExitCode"
-                        $restartneeded = $true
-                    }
-                    else {
-                        Write-Log "Error downloading $kb "
-                    }
-                }
-                catch {
-                    Write-Log "Error downloading or installing $kb" "ERROR"
-                    Write-Log $_ "ERROR"
-                }
-            }
-        }
-
-
+        $restartneeded = downloadAndInstallKB $kburl $global:OSName
 
         #Install MMA Agent
-        try {
-        
-            Write-Log "Check if MMA Agent is already installed"
-            $needinstall = $false
-            $needinstall = !(Test-Path -Path "HKLM:\Software\Classes\AgentConfigManager.MgmtSvcCfg")
-
-            if ($needinstall) {
-                Write-Log "MMA not already installed"
-                Write-Log "MMA not already installed"
-                if (!(Test-Path ($global:currentpath + '\mma.exe'))) {
-                    Write-Log "Download MMA"
-                    (New-Object Net.WebClient).DownloadFile($mmaWebSource, ($Env:TEMP + '\mma.exe'))
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\mma.exe') ($Env:TEMP + '\mma.exe')
-                }
-
-
-                if (Test-Path ($Env:TEMP + '\mma.exe')) {
-                    Write-Log "download of MMA succeded"
-                    Write-Log "Extracting MMA into %TEMP%\MMA"
-                    Start-Process -FilePath ($Env:TEMP + '\mma.exe') -ArgumentList ("/C", "/T:$Env:TEMP\MMA\") -Wait -Verb runas
-                    Write-Log "Installing MMA"
-                    Start-Process -FilePath ($Env:TEMP + '\MMA\setup.exe') -ArgumentList ("/qn", "NOAPM=1", "ADD_OPINSIGHTS_WORKSPACE=1", "OPINSIGHTS_WORKSPACE_AZURE_CLOUD_TYPE=0", 'OPINSIGHTS_WORKSPACE_ID="' + $global:WorkspaceID + '"', 'OPINSIGHTS_WORKSPACE_KEY="' + $global:WorkspaceKey + '"', 'AcceptEndUserLicenseAgreement=1') -Wait -Verb runas
-                
-                    Write-Log "MMA install result $LastExitCode"
-                }
-                else {
-                    Write-Log "Error downloading MMA"
-                }
-            }
-            else {
-                Write-Log "MMA Agent is already installed, so we add MDATP workspace to the existing MMA agent"
-                $AgentCfg = New-Object -ComObject AgentConfigManager.MgmtSvcCfg
-                $AgentCfg.AddCloudWorkspace($global:WorkspaceID, $global:WorkspaceKey)
-                $AgentCfg.ReloadConfiguration()
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing MMA"
-            Write-Log $_ "ERROR"
-        }
+        $restartneeded = downloadAndInstallMMA
     }
 
     if ($restartneeded) {
@@ -903,225 +641,31 @@ Function Install-Windows2008R2 {
 
 Function Install-Windows2012R2 {
     
+    Write-Log "Handle Windows Server 2012 R2"
+
     $restartneeded = $false
-
-    $dotnetWebSource = "https://download.microsoft.com/download/B/A/4/BA4A7E71-2906-4B2D-A0E1-80CF16844F5F/dotNetFx45_Full_setup.exe"
-
-    #SCEP already include KB3209361
-    $scepWebSource = "http://wsus.ds.download.windowsupdate.com/c/msdownload/update/software/crup/2017/01/scepinstall_2c54f8168cc9d05422cde174e771147d527c92ba.exe"
 
     #Update for customer XP & telemetry KB3080149
     $kburl = @{KB3080149 = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2015/08/windows8.1-kb3080149-x64_4254355747ba7cf6974bcfe27c4c34a042e3b07e.msu" }
 
-    $mmaWebSource = "https://go.microsoft.com/fwlink/?LinkId=828603"
-
     if ($global:EDR) {
-        if (($null -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey)) {
-            Write-Host "Provide your Workspace ID : "
-            $global:WorkspaceID = Read-Host
-            Write-Host "Provide your Workspace Key : "
-            $global:WorkspaceKey = Read-Host
-            if (($null -eq $global:WorkspaceID -or "" -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey -or "" -eq $global:WorkspaceKey)) {
-                Write-Log "Workplace ID or Key are null. Fatal error exiting" "FATAL"
-                Write-Error "Workplace ID or Key are null. Fatal error exiting Windows config"
-                exit
-            }
-        }
+        getOMSWorkspaceInfo
     }
 
-    if ($global:EPP) {
-        #Install SCEP
-        try {
-
-            #Test if SCEP is already installed
-            $scepProcess = get-process -ProcessName MsMpEng 2> $null
-            $needinstall = $false
-            if ($null -ne $scepProcess) {
-                Write-Log "SCEP is already installed and running. Checking version"
-                if ($scepProcess.ProductVersion -ne "4.10.0209.0") {
-                    Write-Log ("SCEP is not up to date, installed version is " + $scepProcess.ProductVersion)
-                    Write-Log "Need to update SCEP"
-                    $needinstall = $true
-                }
-                else {
-                    Write-Log "SCEP is installed and up to date"
-                }
-            }
-            else {
-                $needinstall = $true
-            }
-        
-            if ($needinstall) {
-                if (!(Test-Path ($global:currentpath + '\scep.exe'))) {
-                    Write-Log "Download SCEP"
-                    (New-Object Net.WebClient).DownloadFile($scepWebSource, ($Env:TEMP + '\scep.exe'))
-                    Write-Log "download of SCEP succeded"
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\scep.exe') ($Env:TEMP + '\scep.exe')
-                }
-        
-                if (Test-Path ($Env:TEMP + '\scep.exe')) {
-                    Write-Log "Download of SCEP succeeded"
-                    Write-Log "Installing SCEP"
-                    $policyFile = ($global:currentpath + "\SCEPProfile.xml")
-                    Start-Process -FilePath ($Env:TEMP + '\scep.exe') -ArgumentList ("/s", "/policy $policyFile", "/sqmoptin") -Verb runas
-                    Write-Log "SCEP install in background. Wait for it to finish"
-                    Start-Sleep 30
-                    $time = 0
-                    $scepProcess = get-process -ProcessName MsMpEng 2> $null
-                    while (($null -eq $scepProcess) -and ($time -lt 300)) {
-                        $scepProcess = get-process -ProcessName MsMpEng 2> $null
-                        $time += 30
-                        Start-Sleep 30
-                        Write-Log "SCEP install in background. Wait for it to finish T=$time"
-                    }
-                    Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')
-                }
-                else {
-                    Write-Log "Error downloading SCEP agent"
-                }
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing SCEP agent" "ERROR"
-            Write-Log $_ "ERROR"
-            Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')
-        }
-        Start-Sleep 20
-        Write-Log "Force AV definition update"
-        Start-Process -FilePath 'C:\Program Files\Microsoft Security Client\MpCmdRun.exe' -ArgumentList ("-SignatureUpdate", "-MMPC") -Wait -Verb runas
-
-        Write-Log "Getting Windows Update logs"
-        Copy-Item "C:\Windows\WindowsUpdate.log" ($global:resultsDir + '\')
-
-        #configure PUA protection
-        #Write-Log "Configure PUA protection"
+    if ($global:EPP -or $global:downloadOnly) {
+        $restartneeded = downloadAndInstallSCEP
     }
 
-    if ($global:EDR) {
-        #Install NET4.5
-        try {
 
-            Write-Log "Check if .NET Framework 4.5 is already installed"
-            $needinstall = $false
-            if (Test-Path 'HKLM:\Software\microsoft\NET Framework Setup\NDP\v4\Full') {
-                $needinstall = !((Get-ItemProperty 'HKLM:\Software\microsoft\NET Framework Setup\NDP\v4\Full' -Name Version).Version -ge "4.5")
-                Write-Log (".Net 4 installed version is " + (Get-ItemProperty 'HKLM:\Software\microsoft\NET Framework Setup\NDP\v4\Full' -Name Version).Version)
-            }
-            else {
-                $needinstall = $true
-                Write-Log ".Net 4.5 seems not to be installed"
-            }
-
-            if ($needinstall) {
-                if (!(Test-Path ($global:currentpath + '\dotnet4.5.exe'))) {
-                    Write-Log "Download .NET Framework 4.5"
-                    (New-Object Net.WebClient).DownloadFile($dotnetWebSource, ($Env:TEMP + '\dotnet4.5.exe'))
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\dotnet4.5.exe') ($Env:TEMP + '\dotnet4.5.exe')
-                }
-
-
-                if (Test-Path ($Env:TEMP + '\dotnet4.5.exe')) {
-                    Write-Log "download of DotNet 4.5 succeded"
-                    Write-Log "Installing DotNet 4.5"
-                    Start-Process -FilePath ($Env:TEMP + '\dotnet4.5.exe') -ArgumentList ("/q", "/norestart") -Wait -Verb runas
-                    Write-Log "DotNet 4.5 install result $LastExitCode"
-                    $restartneeded = $true
-                    Copy-Item "$env:temp\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')
-                }
-                else {
-                    Write-Log "Error downloading Dot Net 4.5"
-                }
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing Dot Net 4.5" "ERROR"
-            Write-Log $_ "ERROR"
-            Copy-Item "$env:temp\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')
-        }
+    if ($global:EDR -or $global:downloadOnly) {
+        #Install NET4.5 is not needed as already part of Windows 8.1 & Server 2012R2
+        #$restartneeded = downloadAndInstallDOTNET45
 
         #Install missing KB
-        $installedkb = Get-HotFix
-        foreach ($kb in $kburl.Keys) {
-            $installed = $false
-            $installed = $installedkb | % { if ($_.HotfixID -eq $kb) { $true } }
-            if (!$installed) {
-                try {
-                    if (!(Test-Path ($global:currentpath + '\' + $kb + '_win2012R2_x64.msu'))) {
-                        write-log ($kb + " missing from OS. Launching download from " + $kburl[$kb])
-                        (New-Object Net.WebClient).DownloadFile($kburl[$kb], ($Env:TEMP + '\' + $kb + '.msu'))
-                    }
-                    else {
-                        Copy-Item ($global:currentpath + '\' + $kb + '_win2012R2_x64.msu') ($Env:TEMP + '\' + $kb + '.msu')
-                    }
-
-                    if (Test-Path ($Env:TEMP + '\' + $kb + '.msu')) {
-                        Write-Log "download of $kb succeded"
-                        Write-Log "Installing $kb"
-                        Start-Process -FilePath "wusa.exe" -ArgumentList (($Env:TEMP + '\' + $kb + '.msu'), "/quiet", "/norestart") -Wait -Verb runas
-                        Write-Log "$kb install result $LastExitCode"
-                        $restartneeded = $true
-                    }
-                    else {
-                        Write-Log "Error downloading $kb "
-                    }
-                }
-                catch {
-                    Write-Log "Error downloading or installing $kb" "ERROR"
-                    Write-Log $_ "ERROR"
-                }
-            }
-            else {
-                Write-Log "All required KBs are installed"
-            }
-        }
-
+        $restartneeded = downloadAndInstallKB $kburl $global:OSName
 
         #Install MMA Agent
-        try {
-        
-            Write-Log "Check if MMA Agent is already installed"
-            $needinstall = $false
-            $needinstall = !(Test-Path -Path "HKLM:\Software\Classes\AgentConfigManager.MgmtSvcCfg")
-
-            if ($needinstall) {
-                Write-Log "MMA not already installed"
-                if (!(Test-Path ($global:currentpath + '\mma.exe'))) {
-                    Write-Log "Download MMA"
-                    (New-Object Net.WebClient).DownloadFile($mmaWebSource, ($Env:TEMP + '\mma.exe'))
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\mma.exe') ($Env:TEMP + '\mma.exe')
-                }
-
-
-                if (Test-Path ($Env:TEMP + '\mma.exe')) {
-                    Write-Log "download of MMA succeded"
-                    Write-Log "Extracting MMA into %TEMP%\MMA"
-                    Start-Process -FilePath ($Env:TEMP + '\mma.exe') -ArgumentList ("/C", "/T:$Env:TEMP\MMA\") -Wait -Verb runas
-                    Write-Log "Installing MMA"
-                    Start-Process -FilePath ($Env:TEMP + '\MMA\setup.exe') -ArgumentList ("/qn", "NOAPM=1", "ADD_OPINSIGHTS_WORKSPACE=1", "OPINSIGHTS_WORKSPACE_AZURE_CLOUD_TYPE=0", 'OPINSIGHTS_WORKSPACE_ID="' + $global:WorkspaceID + '"', 'OPINSIGHTS_WORKSPACE_KEY="' + $global:WorkspaceKey + '"', 'AcceptEndUserLicenseAgreement=1') -Wait -Verb runas
-                
-                    Write-Log "MMA install result $LastExitCode"
-                }
-                else {
-                    Write-Log "Error downloading MMA"
-                }
-            }
-            else {
-                Write-Log "MMA Agent is already installed, so we add MDATP workspace to the existing MMA agent"
-                $AgentCfg = New-Object -ComObject AgentConfigManager.MgmtSvcCfg
-                $AgentCfg.AddCloudWorkspace($global:WorkspaceID, $global:WorkspaceKey)
-                $AgentCfg.ReloadConfiguration()
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing MMA"
-            Write-Log $_ "ERROR"
-        }
+        $restartneeded = downloadAndInstallMMA
     }
     
     if ($restartneeded) {
@@ -1141,23 +685,12 @@ Function Install-Windows2012R2 {
 
 Function Install-Windows2016 {
 
+    Write-Log "Handle Windows Server 2016"
 
     $restartneeded = $false
 
-    $mmaWebSource = "https://go.microsoft.com/fwlink/?LinkId=828603"
-
     if ($global:EDR) {
-        if (($null -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey)) {
-            Write-Host "Provide your Workspace ID : "
-            $global:WorkspaceID = Read-Host
-            Write-Host "Provide your Workspace Key : "
-            $global:WorkspaceKey = Read-Host
-            if (($null -eq $global:WorkspaceID -or "" -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey -or "" -eq $global:WorkspaceKey)) {
-                Write-Log "Workplace ID or Key are null. Fatal error exiting" "FATAL"
-                Write-Error "Workplace ID or Key are null. Fatal error exiting Windows config"
-                exit
-            }
-        }
+        getOMSWorkspaceInfo
     }
 
     if ($global:EPP) {
@@ -1166,7 +699,7 @@ Function Install-Windows2016 {
 
             # Test if WDAV is already installed and running
             $WDAVProcess = Get-Process -ProcessName MsMpEng 2> $null
-            if ($WDAVProcess -eq $null) {
+            if ($null -eq $WDAVProcess) {
                 Write-Log "Windows Defender is not running, Checking WDAV feature status"
                 $WDAVFeature = Get-WindowsFeature -Name "Windows-Defender-Features"
                 if ($WDAVFeature.InstallState -ne "Installed") {
@@ -1186,10 +719,7 @@ Function Install-Windows2016 {
                     Write-Log "Launching security intelligence updates"
                     Update-MPSignature -UpdateSource MicrosoftUpdateServer
                 }
-                else {
-                    Write-Log "Changing update settings to Windows Update"
-                    Set-ItemProperty -Path HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU -Name AUOptions -Value "4"
-                }
+
             }
         }
         catch {
@@ -1200,47 +730,7 @@ Function Install-Windows2016 {
 
     if ($global:EDR) {
         #Install MMA Agent
-        try {
-        
-            Write-Log "Check if MMA Agent is already installed"
-            $needinstall = $false
-            $needinstall = !(Test-Path -Path "HKLM:\Software\Classes\AgentConfigManager.MgmtSvcCfg")
-
-            if ($needinstall) {
-                Write-Log "MMA not already installed"
-                if (!(Test-Path ($global:currentpath + '\mma.exe'))) {
-                    Write-Log "Download MMA"
-                    (New-Object Net.WebClient).DownloadFile($mmaWebSource, ($Env:TEMP + '\mma.exe'))
-                }
-                else {
-                    Copy-Item ($global:currentpath + '\mma.exe') ($Env:TEMP + '\mma.exe')
-                }
-
-
-                if (Test-Path ($Env:TEMP + '\mma.exe')) {
-                    Write-Log "download of MMA succeded"
-                    Write-Log "Extracting MMA into %TEMP%\MMA"
-                    Start-Process -FilePath ($Env:TEMP + '\mma.exe') -ArgumentList ("/C", "/T:$Env:TEMP\MMA\") -Wait -Verb runas
-                    Write-Log "Installing MMA"
-                    Start-Process -FilePath ($Env:TEMP + '\MMA\setup.exe') -ArgumentList ("/qn", "NOAPM=1", "ADD_OPINSIGHTS_WORKSPACE=1", "OPINSIGHTS_WORKSPACE_AZURE_CLOUD_TYPE=0", 'OPINSIGHTS_WORKSPACE_ID="' + $global:WorkspaceID + '"', 'OPINSIGHTS_WORKSPACE_KEY="' + $global:WorkspaceKey + '"', 'AcceptEndUserLicenseAgreement=1') -Wait -Verb runas
-                
-                    Write-Log "MMA install result $LastExitCode"
-                }
-                else {
-                    Write-Log "Error downloading MMA"
-                }
-            }
-            else {
-                Write-Log "MMA Agent is already installed, so we add MDATP workspace to the existing MMA agent"
-                $AgentCfg = New-Object -ComObject AgentConfigManager.MgmtSvcCfg
-                $AgentCfg.AddCloudWorkspace($global:WorkspaceID, $global:WorkspaceKey)
-                $AgentCfg.ReloadConfiguration()
-            }
-        }
-        catch {
-            Write-Log "Error downloading or installing MMA"
-            Write-Log $_ "ERROR"
-        }
+        downloadAndInstallMMA
     }
 
     if ($restartneeded) {
@@ -1262,6 +752,8 @@ Function Install-Windows2016 {
 
 Function Install-Windows2019 {
 
+    Write-Log "Handle Windows 2019"
+
     $restartneeded = $false
 
     if ($global:EPP) {
@@ -1269,7 +761,7 @@ Function Install-Windows2019 {
         try {
             # Test if MDAV is already installed and running
             $WDAVProcess = Get-Process -ProcessName MsMpEng 2> $null
-            if ($WDAVProcess -eq $null) {
+            if ($null -eq $WDAVProcess) {
                 Write-Log "Windows Defender is not running, Checking WDAV feature status"
                 $WDAVFeature = Get-WindowsFeature -Name "Windows-Defender-Features"
                 if ($WDAVFeature.InstallState -ne "Installed") {
@@ -1288,10 +780,6 @@ Function Install-Windows2019 {
                 if (($WUSetting -eq "3") -or ($WUSetting -eq "4")) {
                     Write-Log "Launching security intelligence updates"
                     Update-MPSignature -UpdateSource MicrosoftUpdateServer
-                }
-                else {
-                    Write-Log "Changing update settings to Windows Update"
-                    Set-ItemProperty -Path HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU -Name AUOptions -Value "4"
                 }
             }
         }
@@ -1453,7 +941,7 @@ Function Set-WindowsSecuritySettings {
         }
 
         Write-Log "Extracting Windows Defender settings" "INFO"
-        Get-MpPreference | Out-File ($global:resultsDir+'\Get-MpPreference.txt')
+        Get-MpPreference | Out-File ($global:resultsDir + '\Get-MpPreference.txt')
 
         Write-Log "Microsoft Defender ATP settings update completed" "SUCCESS"
     }
@@ -1468,7 +956,7 @@ Function Add-MachineTag {
 
     Try {
         if (($null -eq $global:MachineTag) -or ("" -eq $global:MachineTag)) {
-            Write-Log "Machine Tag is null" "ERROR"
+            Write-Log "Machine Tag is null" "INFO"
             return
         }
         else {
@@ -1495,6 +983,6 @@ Export-ModuleMember -Function Install-Windows2012R2
 Export-ModuleMember -Function Install-Windows2016
 Export-ModuleMember -Function Install-Windows2019
 Export-ModuleMember -Function Test-MDATPEICAR
-Export-ModuleMember -Function Confirm-Installation
+Export-ModuleMember -Function Confirm-MDATPInstallation
 Export-ModuleMember -Function Set-WindowsSecuritySettings
 Export-ModuleMember -Function Add-MachineTag
