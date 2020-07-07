@@ -69,7 +69,7 @@ Function Confirm-MDATPInstallation {
         }
     }
     else {
-        Copy-Item ($global:currentpath + "\psexec.exe") ($global:downloadLocation + '\psexec.exe')
+        Copy-Item ($global:currentpath + "\psexec.exe") ($global:downloadLocation + '\psexec.exe')  -Force
     }
 
     if (!$global:downloadOnly) {
@@ -84,7 +84,7 @@ Function Confirm-MDATPInstallation {
                     Remove-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab"
                 }
                 Start-Process -FilePath ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe') -ArgumentList ("-GetFiles") -Wait -Verb runas
-                Copy-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab" ($global:resultsDir + '\MpSupportFiles.cab')
+                Copy-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab" ($global:resultsDir + '\MpSupportFiles.cab') -Force
             }
         }
         catch {
@@ -112,7 +112,7 @@ Function Confirm-MDATPInstallation {
             }   
         }
         else {
-            Copy-Item ($global:currentpath + "\MDATPClientAnalyzer.zip") ($global:downloadLocation + '\MDATPClientAnalyzer.zip')
+            Copy-Item ($global:currentpath + "\MDATPClientAnalyzer.zip") ($global:downloadLocation + '\MDATPClientAnalyzer.zip')  -Force
         }
 
         if (!$global:downloadOnly) {
@@ -121,7 +121,7 @@ Function Confirm-MDATPInstallation {
             }
             $expandBuiltIn = get-command Expand-Archive 2> $null
             if ($null -ne $expandBuiltIn) {
-                Expand-Archive -Path ($global:downloadLocation + "\MDATPClientAnalyzer.zip") -DestinationPath ($global:downloadLocation + "\MDATPClientAnalyzer\")
+                Expand-Archive -Path ($global:downloadLocation + "\MDATPClientAnalyzer.zip") -DestinationPath ($global:downloadLocation + "\MDATPClientAnalyzer\") -Force
             }
             else {
                 Expand-ZIPFile ($global:downloadLocation + "\MDATPClientAnalyzer.zip") ($global:downloadLocation + "\MDATPClientAnalyzer\")
@@ -130,7 +130,7 @@ Function Confirm-MDATPInstallation {
             Write-Log "Test connection to MDATP backend as System"
             if (Test-Path ($global:downloadLocation + '\MDATPClientAnalyzer\MDATPClientAnalyzer.cmd')) {
                 Start-Process -FilePath ($global:downloadLocation + '\MDATPClientAnalyzer\MDATPClientAnalyzer.cmd') -ArgumentList (">" + $global:resultsDir + "\mdatp.log") -Wait -Verb runas
-                Copy-Item ($global:downloadLocation + '\MDATPClientAnalyzer\MDATPClientAnalyzerResult\') ($global:resultsDir) -Recurse 
+                Copy-Item ($global:downloadLocation + '\MDATPClientAnalyzer\MDATPClientAnalyzerResult\') ($global:resultsDir) -Recurse  -Force
             }
         }
     }
@@ -196,7 +196,7 @@ Function downloadAndInstallSCEP {
             else {
                 if (!$global:downloadOnly) {
                     #This is relevant only if we need to install it
-                    Copy-Item ($global:currentpath + '\scep.exe') ($global:downloadLocation + '\scep.exe')
+                    Copy-Item ($global:currentpath + '\scep.exe') ($global:downloadLocation + '\scep.exe')  -Force
                 }
             }
 
@@ -215,7 +215,7 @@ Function downloadAndInstallSCEP {
                         Start-Sleep 30
                         Write-Log "SCEP install in background. Wait for it to finish T=$time"
                     }
-                    Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')
+                    Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')  -Force
                 }
                 else {
                     Write-Log "Error downloading SCEP agent"
@@ -226,7 +226,7 @@ Function downloadAndInstallSCEP {
     catch {
         Write-Log "Error downloading or installing SCEP agent" "ERROR"
         Write-Log $_ "ERROR"
-        Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')
+        Copy-Item "C:\ProgramData\Microsoft\Microsoft Security Client\Support\*" ($global:resultsDir + '\')  -Force
     }
 
     if (!$global:downloadOnly) {
@@ -235,7 +235,7 @@ Function downloadAndInstallSCEP {
         Start-Process -FilePath 'C:\Program Files\Microsoft Security Client\MpCmdRun.exe' -ArgumentList ("-SignatureUpdate", "-MMPC") -Wait -Verb runas
 
         Write-Log "Getting Windows Update logs"
-        Copy-Item "C:\Windows\WindowsUpdate.log" ($global:resultsDir + '\')
+        Copy-Item "C:\Windows\WindowsUpdate.log" ($global:resultsDir + '\')  -Force
     }
 }
 
@@ -276,7 +276,7 @@ Function downloadAndInstallDOTNET45 {
             }
             else {
                 if (!$global:downloadOnly) {
-                    Copy-Item ($global:currentpath + '\dotnet4.5.exe') ($global:downloadLocation + '\dotnet4.5.exe')
+                    Copy-Item ($global:currentpath + '\dotnet4.5.exe') ($global:downloadLocation + '\dotnet4.5.exe')  -Force
                 }
             }
 
@@ -287,7 +287,7 @@ Function downloadAndInstallDOTNET45 {
                     Start-Process -FilePath ($global:downloadLocation + '\dotnet4.5.exe') -ArgumentList ("/q", "/norestart") -Wait -Verb runas
                     Write-Log "DotNet 4.5 install result $LastExitCode"
                     $restartneeded = $true
-                    Copy-Item "$global:downloadLocation\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')
+                    Copy-Item "$global:downloadLocation\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')  -Force
                 }
                 else {
                     Write-Log "Error downloading Dot Net 4.5"
@@ -298,7 +298,7 @@ Function downloadAndInstallDOTNET45 {
     catch {
         Write-Log "Error downloading or installing Dot Net 4.5" "ERROR"
         Write-Log $_ "ERROR"
-        Copy-Item "$global:downloadLocation\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')
+        Copy-Item "$global:downloadLocation\Microsoft .NET Framework 4.5 Setup*.html" ($global:resultsDir + '\')  -Force
     }
 
     return $restartneeded
@@ -323,7 +323,7 @@ Function downloadAndInstallMMA {
             }
             else {
                 if (!$global:downloadOnly) {
-                    Copy-Item ($global:currentpath + '\mma.exe') ($global:downloadLocation + '\mma.exe')
+                    Copy-Item ($global:currentpath + '\mma.exe') ($global:downloadLocation + '\mma.exe')  -Force
                 }
             }
             
@@ -389,7 +389,7 @@ Function downloadAndInstallKB {
                 }
                 else {
                     if (!$global:downloadOnly) {
-                        Copy-Item ($global:currentpath + '\' + $kb + $OSName + '.msu') ($global:downloadLocation + '\' + $kb + $OSName + '.msu')
+                        Copy-Item ($global:currentpath + '\' + $kb + $OSName + '.msu') ($global:downloadLocation + '\' + $kb + $OSName + '.msu')  -Force
                     }
                 }
 
@@ -510,8 +510,9 @@ Function Install-Windows81 {
     }
 }
 
-Function Get-inforamtion {
+Function Get-AVInformation {
     get-wmiObject AntivirusProduct -Namespace root\SecurityCenter2 > $ENV:TEMP + '\MDATP\WMI_Antivirus.log'
+    get-
 }
 
 Function Install-Windows10 {
@@ -552,8 +553,13 @@ Function Install-Windows10 {
         try {
             if (Test-Path $global:OnboardingPackage) {
                 Write-Log "Onboarding package detected, proceed with onboarding"
-                Expand-Archive -Path $global:OnboardingPackage -DestinationPath $global:currentpath -Force
-                Start-Process -FilePath ($global:currentpath + "\WindowsDefenderATPLocalOnboardingScript.cmd") -Wait -Verb RunAs
+                Expand-Archive -Path $global:OnboardingPackage -DestinationPath $ENV:TEMP -Force
+                #Edit cmd file to transform it to automated
+                $file = get-content ($ENV:TEMP+"\WindowsDefenderATPLocalOnboardingScript.cmd")
+                $file[1] = "GOTO SCRIPT_START"
+                $file.replace("pause","") > ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd")
+
+                Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd") -Wait -Verb RunAs
                 Write-Log "Onboarding completed" "SUCCESS"
             }
             else {
