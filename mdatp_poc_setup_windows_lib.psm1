@@ -1,6 +1,5 @@
 # DISCLAIMER
 # Script provided as-is without any garantee it will work and is not supported by Microsoft
-# authors Ajourn & thibou
 
 Function Write-Log {
     [CmdletBinding()]
@@ -527,16 +526,7 @@ Function Install-Windows10 {
             if ($null -ne $WDAVProcess) {
                 Write-Log "Windows Defender is already installed and running"
                 Write-Log "Checking security intelligence updates settings"
-                $WUSetting = (Get-ItemProperty -Path HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU -Name AUOptions).AUOptions
-                if (($WUSetting -eq "3") -or ($WUSetting -eq "4")) {
-                    Write-Log "Launching security intelligence updates"
-                    Update-MPSignature -UpdateSource MicrosoftUpdateServer
-                }
-                else {
-                    Write-Log "Changing update settings to Windows Update"
-                    Set-ItemProperty -Path HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU -Name AUOptions -Value "4"
-                    Update-MPSignature -UpdateSource MicrosoftUpdateServer
-                } 
+                Update-MPSignature -UpdateSource MicrosoftUpdateServer
             }
             else {
                 Write-Log "Microsoft Defender AV is not running, check the event viewer"
