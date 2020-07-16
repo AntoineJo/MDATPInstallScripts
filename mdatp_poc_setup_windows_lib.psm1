@@ -153,7 +153,7 @@ function Expand-ZipFile {
     }
         
     catch {
-        Write-Log ($_.Exception.Message) "WARNING"
+        Write-Log ($_.Exception.Message) "WARN"
     }
 }
 
@@ -236,6 +236,76 @@ Function downloadAndInstallSCEP {
         Write-Log "Getting Windows Update logs"
         Copy-Item "C:\Windows\WindowsUpdate.log" ($global:resultsDir + '\')  -Force
     }
+}
+
+Function Uninstall($uninstallKeyPathValue,$defaultUninstallcmdLine){
+
+    Write-Log "Uninstalling function KeyPathValue $uninstallKeyPathValue" "DEBUG"
+    Write-Log "Uninstalling function KeyPathValue $defaultUninstallcmdLine" "DEBUG"
+
+    $uninstallKeyPath = ($uninstallKeyPathValue.split("!"))[0]
+    $uninstallProperty = ($uninstallKeyPathValue.split("!"))[1]
+    $cmdline = ""
+    $needrestart = $false
+
+    if(!(Test-Path $uninstallKeyPath)) {
+        #if uninstall key is not found
+        Write-Log "Could not find uninstall key under $uninstallKeyPath" "WARN"
+        Write-Log "Test standard uninstall cmd line $defaultUninstallcmdLine" "WARN"
+        $cmdline = $defaultUninstallcmdLine
+    }
+    else {
+        
+        $uninstallKey = Get-ItemProperty $uninstallKeyPath -Name $uninstallProperty 2> $null
+        
+        if($null -eq $uninstallKey) {
+            #if uninstall value is not found
+            Write-Log "Could not find uninstall key/value under $uninstallKeyPath!$uninstallProperty" "WARN"
+            Write-Log "Test standard uninstall cmd line $defaultUninstallcmdLine" "WARN"
+            $cmdline = $defaultUninstallcmdLine
+        }
+        else {
+            $cmdline = $uninstallKey.UninstallString
+        }
+    }
+
+    $cmdline = $cmdline.split("/")
+    Write-Log ("Trying to locate uninstall binary "+$cmdline[0]) "INFO"
+    $cmdline[0] = $cmdline[0].Replace('"','')
+
+    if((Test-Path $cmdline[0]) -or ($cmdline[0].ToLower().trim() -eq "msiexec.exe")){
+        Write-Log "Uninstalling" "INFO"
+        if($cmdline[0].ToLower().trim() -eq "msiexec.exe"){
+            Start-Process -FilePath $cmdline[0] -ArgumentList("/"+$cmdline[1],"/quiet","/norestart")
+        }
+        else {
+            Start-Process -FilePath $cmdline[0] -ArgumentList("/"+$cmdline[1],"/s")
+        }
+        $needrestart = $true
+    }
+    else {
+        Write-Log "Uninstall binary not found" "ERROR"
+        $needrestart = $false
+    }
+    
+    return $needrestart
+}
+
+Function UninstallSCEP {
+
+    $needrestart = $false
+
+    #check if SCEP is running, if no, exit
+    $scepProcess = get-process -ProcessName MsMpEng 2> $null
+    if(!$scepProcess) {
+        Write-Log "SCEP is not running, exiting" "INFO"
+        return $needrestart
+    }
+    
+    $needrestart = Uninstall "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Security Client!UninstallString" "C:\Program Files\Microsoft Security Client\Setup.exe /x"
+
+    return $needrestart
+        
 }
 
 Function getOMSWorkspaceInfo {
@@ -353,6 +423,40 @@ Function downloadAndInstallMMA {
         Write-Log $_ "ERROR"
     }
 
+    return $restartneeded
+}
+
+Function UninstallMMA{
+    Write-Log "Check if MMA Agent is already installed"
+    $isInstalled = $false
+    $isInstalled = (Test-Path -Path "HKLM:\Software\Classes\AgentConfigManager.MgmtSvcCfg")
+
+    if(!$isInstalled) {
+        Write-Log "MMA Agent is not installed, exiting" "INFO"
+        return $restartneeded
+    }
+
+    #Getting MMA configuration, check if there is multiple workspace
+    # if so, then remove the MDATP Workspace and keep the agent
+    # else uninstall the MMA agent
+
+    Write-Log "MMA Agent is already installed, so we remove the MDATP workspace to the existing MMA agent or uninstall it"
+    $AgentCfg = New-Object -ComObject AgentConfigManager.MgmtSvcCfg
+    $workspaces = $agentcfg.GetCloudWorkspaces()      
+    if($workspaces.Length -gt 1){
+        Write-Log "Removing MDATP Workspace but keeping MMA agent for other Workspaces"
+        $AgentCfg.RemoveCloudWorkspace($global:WorkspaceID)
+        $AgentCfg.ReloadConfiguration()
+    }
+    else {
+        if($AgentCfg.GetCloudWorkspaces().Item(0).workspaceId -eq $global:WorkspaceID){
+            $restartneeded = Uninstall "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D035C02C-D356-43F2-B8B7-4A1CE5BD5AE0}!UninstallString" "MsiExec.exe /I{D035C02C-D356-43F2-B8B7-4A1CE5BD5AE0}" 
+        }
+        else {
+            Write-Log ("The workspace ID "+$AgentCfg.GetCloudWorkspaces().Item(0).workspaceId+" is not the provided one. Exiting without doing anything on MMA agent.") "WARN"
+        }
+    }
+    
     return $restartneeded
 }
 
@@ -871,6 +975,88 @@ Function Install-Windows2019 {
     }
 }
 
+Function Uninstall-Windows7 {
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = UninstallMMA
+    }
+
+    if ($global:EPP) {
+        $restartneeded = UninstallSCEP
+    }
+
+    if ($restartneeded) {
+        Write-Log "Installation completed. Restart is required" "INFO"
+    }
+}
+
+Function Uninstall-Windows81 {
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = UninstallMMA
+    }
+
+    if ($global:EPP) {
+        $restartneeded = UninstallSCEP
+    }
+
+    if ($restartneeded) {
+        Write-Log "Installation completed. Restart is required" "INFO"
+    }
+}
+
+Function Uninstall-Windows2008R2 {
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = UninstallMMA
+    }
+
+    if ($global:EPP) {
+        $restartneeded = UninstallSCEP
+    }
+
+    if ($restartneeded) {
+        Write-Log "Installation completed. Restart is required" "INFO"
+    }
+}
+
+Function Uninstall-Windows2012R2 {
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = UninstallMMA
+    }
+
+    if ($global:EPP) {
+        $restartneeded = UninstallSCEP
+    }
+
+    if ($restartneeded) {
+        Write-Log "Installation completed. Restart is required" "INFO"
+    }
+}
+
+Function Uninstall-Windows2016 {
+    $restartneeded = $false
+
+    Write-Log "UNIMPLEMENTED" "ERROR"
+
+    if ($global:EDR) {
+        
+    }
+
+    if ($global:EPP) {
+        
+    }
+
+    if ($restartneeded) {
+        Write-Log "Installation completed. Restart is required" "INFO"
+    }
+}
+
 Function Uninstall-Windows2019 {
     
     Write-Log "Handle Windows Server 2019 Uninstallation"
@@ -1054,11 +1240,16 @@ Export-ModuleMember -Function Write-Log
 Export-ModuleMember -Function Install-Windows7
 Export-ModuleMember -Function Install-Windows81
 Export-ModuleMember -Function Install-Windows10
-Export-ModuleMember -Function Uninstall-Windows10
 Export-ModuleMember -Function Install-Windows2008R2
 Export-ModuleMember -Function Install-Windows2012R2
 Export-ModuleMember -Function Install-Windows2016
 Export-ModuleMember -Function Install-Windows2019
+Export-ModuleMember -Function Uninstall-Windows7
+Export-ModuleMember -Function Uninstall-Windows81
+Export-ModuleMember -Function Uninstall-Windows10
+Export-ModuleMember -Function Uninstall-Windows2008R2
+Export-ModuleMember -Function Uninstall-Windows2012R2
+Export-ModuleMember -Function Uninstall-Windows2016
 Export-ModuleMember -Function Uninstall-Windows2019
 Export-ModuleMember -Function Test-MDATPEICAR
 Export-ModuleMember -Function Confirm-MDATPInstallation
