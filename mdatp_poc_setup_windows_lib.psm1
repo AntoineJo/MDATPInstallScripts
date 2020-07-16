@@ -238,6 +238,48 @@ Function downloadAndInstallSCEP {
     }
 }
 
+Function UninstallSCEP {
+    $uninstallKey = "" 
+    $uninstallKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Security Client"
+    $needrestart = $false
+
+    if(!(Test-Path $uninstallKeyPath)) {
+        #if uninstall key is not found
+        Write-Log "Could not find SCEP uninstall key under uninstallKeyPath" "WARNING"
+        Write-Log "Test standard uninstall cmd line C:\Program Files\Microsoft Security Client\Setup.exe /x" "WARNING"
+        $cmdline = "C:\Program Files\Microsoft Security Client\Setup.exe /x"
+    }
+    else {
+        
+        $uninstallKey = Get-ItemProperty $uninstallKeyPath -Name UninstallString 2> $null
+        $cmdline = ""
+        if($null -eq $uninstallKey) {
+            #if uninstall value is not found
+            Write-Log "Could not find SCEP uninstall key/value under $uninstallKeyPath!UninstallString" "WARNING"
+            Write-Log "Test standard uninstall cmd line C:\Program Files\Microsoft Security Client\Setup.exe /x" "WARNING"
+            $cmdline = "C:\Program Files\Microsoft Security Client\Setup.exe /x"
+        }
+        else {
+            $cmdline = $uninstallKey.UninstallString.split("/")
+        }
+    }
+
+    Write-Log ("Trying to locate uninstall binary "+$cmdline[0]) "INFO"
+    $cmdline[0] = $cmdline[0].Replace('"','')
+
+    if(Test-Path $cmdline[0]){
+        Write-Log "Uninstalling" "INFO"
+        Start-Process -FilePath $cmdline[0] -ArgumentList("/"+$cmdline[1],"/s")
+        $needrestart = $true
+    }
+    else {
+        Write-Log "Uninstall binary not found" "ERROR"
+    }
+
+    return $needrestart
+        
+}
+
 Function getOMSWorkspaceInfo {
 
     if (($null -eq $global:WorkspaceID -or "" -eq $global:WorkspaceID) -or ($null -eq $global:WorkspaceKey -or "" -eq $global:WorkspaceKey)) {
@@ -355,6 +397,7 @@ Function downloadAndInstallMMA {
 
     return $restartneeded
 }
+
 
 Function downloadAndInstallKB {
     [CmdletBinding()]
@@ -814,6 +857,24 @@ Function Install-Windows2019 {
         } while (!$fin)#>
     }
 }
+
+
+Function Uninstall-Windows7 {
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = UninstallEDR
+    }
+
+    if ($global:EPP) {
+        $restartneeded = UninstallSCEP
+    }
+
+    if ($restartneeded) {
+        Write-Log "Installation completed. Restart is required" "INFO"
+    }
+}
+
 
 Function Set-WindowsSecuritySettings {
 
