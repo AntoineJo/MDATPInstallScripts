@@ -12,6 +12,14 @@ Param(
     $installEDR,
 
     [Parameter(Mandatory = $false)]
+    [switch]
+    $uninstallEPP,
+
+    [Parameter(Mandatory = $false)]
+    [switch]
+    $uninstallEDR,
+
+    [Parameter(Mandatory = $false)]
     [String]
     $WorkspaceKey,
 
@@ -66,6 +74,13 @@ if ($installEDR) {
 } 
 else {
     $global:EDR = $false
+}
+
+if($uninstallEDR -or $uninstallEPP){
+    $global:uninstall = $true
+}
+else {
+    $global:uninstall = $false
 }
 
 $global:downloadOnly = $DownloadContent
@@ -123,14 +138,26 @@ if (!$global:downloadOnly) {
                 return
             }
             $global:OSName = "Windows7x64"
-            Install-Windows7
+
+            if(!$global:uninstall) {
+                Install-Windows7
+            }
+            else {
+                Uninstall-Windows7
+            }
 
         }
         elseif (("7", "8", "10", "36", "37", "38") -contains $OSinfo.OperatingSystemSKU) {
             #Windows Server 2008 R2
             Write-Log "Windows Server 2008 R2"
             $global:OSName = "Windows2008R2"
-            Install-Windows2008R2
+
+            if(!$global:uninstall) {
+                Install-Windows2008R2
+            }
+            else {
+                Uninstall-Windows2008R2
+            }
 
         }
         else {
@@ -151,7 +178,13 @@ if (!$global:downloadOnly) {
                 return
             }
             $global:OSName = "Windows8.1x64"
-            Install-Windows81
+            
+            if(!$global:uninstall) {
+                Install-Windows81
+            }
+            else {
+                Uninstall-Windows81
+            }
 
         }
         elseif (("7", "8", "10", "36", "37", "38") -contains $OSinfo.OperatingSystemSKU) {
@@ -163,7 +196,13 @@ if (!$global:downloadOnly) {
                 return
             }
             $global:OSName = "Windows2012R2"
-            Install-Windows2012R2
+            
+            if(!$global:uninstall) {
+                Install-Windows2012R2
+            }
+            else {
+                Uninstall-Windows2012R2
+            }
 
         }
         else {
@@ -179,7 +218,14 @@ if (!$global:downloadOnly) {
             #Windows 10 Pro, Pro N, Enterprise or Enterprise N
             Write-Log "Windows 10 Pro, Pro N, Enterprise or Enterprise N"
             $global:OSName = "Windows10x64"
-            Install-Windows10
+            
+            if(!$global:uninstall) {
+                Install-Windows10
+            }
+            else {
+                Uninstall-Windows10
+            }
+
             if ($global:EPP) {
                 Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
             }
@@ -190,14 +236,27 @@ if (!$global:downloadOnly) {
                 #Windows Server 2016
                 Write-Log "Windows Server 2016"
                 $global:OSName = "Windows2016"
-                Install-Windows2016
+                
+                if(!$global:uninstall) {
+                    Install-Windows2016
+                }
+                else {
+                    Uninstall-Windows2016
+                }
 
             }
             else {
                 #Windows Server 2019
                 Write-Log "Windows Server 2019"
                 $global:OSName = "Windows2019"
-                Install-Windows2019
+
+                if(!$global:uninstall) {
+                    Install-Windows2019
+                }
+                else {
+                    Uninstall-Windows2019
+                }
+                
                 if ($global:EPP) {
                     Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
                 }
