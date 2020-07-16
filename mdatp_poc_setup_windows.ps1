@@ -32,7 +32,7 @@ Param(
     $MDATPTag,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("AuditMode", "EnforcedMode")]
+    [ValidateSet("AuditMode", "EnforcedMode","Disabled")]
     [String]
     $ASRMode = "AuditMode",
 
@@ -59,6 +59,7 @@ $global:WorkspaceKey = $WorkspaceKey
 switch ($ASRMode) {
     "AuditMode" { $global:ASRValue = "AuditMode" }
     "EnforcedMode" { $global:ASRValue = "Enabled" }
+    "Disabled" { $global:ASRValue = "Disabled" }
 }
 
 $global:MachineTag = $MDATPTag
@@ -78,6 +79,12 @@ else {
 
 if($uninstallEDR -or $uninstallEPP){
     $global:uninstall = $true
+    if($uninstallEPP){
+        $global:EPP = $true
+    }
+    if($uninstallEDR){
+        $global:EDR = $true
+    }
 }
 else {
     $global:uninstall = $false
@@ -279,8 +286,10 @@ if (!$global:downloadOnly) {
     if ($global:EDR) {
         Add-MachineTag
     }
-    Confirm-MDATPInstallation
-    Test-MDATPEICAR    
+    if(!$global:uninstall){
+        Confirm-MDATPInstallation
+        Test-MDATPEICAR    
+    }
 }
 else {
     

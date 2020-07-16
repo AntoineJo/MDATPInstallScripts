@@ -153,7 +153,7 @@ function Expand-ZipFile {
     }
         
     catch {
-        Write-Log ($_.Exception.Message) "WARNING"
+        Write-Log ($_.Exception.Message) "WARN"
     }
 }
 
@@ -240,6 +240,9 @@ Function downloadAndInstallSCEP {
 
 Function Uninstall($uninstallKeyPathValue,$defaultUninstallcmdLine){
 
+    Write-Log "Uninstalling function KeyPathValue $uninstallKeyPathValue" "DEBUG"
+    Write-Log "Uninstalling function KeyPathValue $defaultUninstallcmdLine" "DEBUG"
+
     $uninstallKeyPath = ($uninstallKeyPathValue.split("!"))[0]
     $uninstallProperty = ($uninstallKeyPathValue.split("!"))[1]
     $cmdline = ""
@@ -247,8 +250,8 @@ Function Uninstall($uninstallKeyPathValue,$defaultUninstallcmdLine){
 
     if(!(Test-Path $uninstallKeyPath)) {
         #if uninstall key is not found
-        Write-Log "Could not find SCEP uninstall key under $uninstallKeyPath" "WARNING"
-        Write-Log "Test standard uninstall cmd line $defaultUninstallcmdLine" "WARNING"
+        Write-Log "Could not find uninstall key under $uninstallKeyPath" "WARN"
+        Write-Log "Test standard uninstall cmd line $defaultUninstallcmdLine" "WARN"
         $cmdline = $defaultUninstallcmdLine
     }
     else {
@@ -257,25 +260,26 @@ Function Uninstall($uninstallKeyPathValue,$defaultUninstallcmdLine){
         
         if($null -eq $uninstallKey) {
             #if uninstall value is not found
-            Write-Log "Could not find SCEP uninstall key/value under $uninstallKeyPath!$uninstallProperty" "WARNING"
-            Write-Log "Test standard uninstall cmd line $defaultUninstallcmdLine" "WARNING"
+            Write-Log "Could not find uninstall key/value under $uninstallKeyPath!$uninstallProperty" "WARN"
+            Write-Log "Test standard uninstall cmd line $defaultUninstallcmdLine" "WARN"
             $cmdline = $defaultUninstallcmdLine
         }
         else {
-            $cmdline = $uninstallKey.UninstallString.split("/")
+            $cmdline = $uninstallKey.UninstallString
         }
     }
 
+    $cmdline = $cmdline.split("/")
     Write-Log ("Trying to locate uninstall binary "+$cmdline[0]) "INFO"
     $cmdline[0] = $cmdline[0].Replace('"','')
 
     if((Test-Path $cmdline[0]) -or ($cmdline[0].ToLower().trim() -eq "msiexec.exe")){
         Write-Log "Uninstalling" "INFO"
         if($cmdline[0].ToLower().trim() -eq "msiexec.exe"){
-            #Start-Process -FilePath $cmdline[0] -ArgumentList("/"+$cmdline[1],"/quiet","/norestart")
+            Start-Process -FilePath $cmdline[0] -ArgumentList("/"+$cmdline[1],"/quiet","/norestart")
         }
         else {
-            #Start-Process -FilePath $cmdline[0] -ArgumentList("/"+$cmdline[1],"/s")
+            Start-Process -FilePath $cmdline[0] -ArgumentList("/"+$cmdline[1],"/s")
         }
         $needrestart = $true
     }
@@ -298,7 +302,7 @@ Function UninstallSCEP {
         return $needrestart
     }
     
-    $needrestart = Uninstall("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Security Client!UninstallString","C:\Program Files\Microsoft Security Client\Setup.exe /x")
+    $needrestart = Uninstall "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Security Client!UninstallString" "C:\Program Files\Microsoft Security Client\Setup.exe /x"
 
     return $needrestart
         
@@ -436,16 +440,21 @@ Function UninstallMMA{
     # if so, then remove the MDATP Workspace and keep the agent
     # else uninstall the MMA agent
 
-    Write-Log "MMA Agent is already installed, so we add MDATP workspace to the existing MMA agent"
+    Write-Log "MMA Agent is already installed, so we remove the MDATP workspace to the existing MMA agent or uninstall it"
     $AgentCfg = New-Object -ComObject AgentConfigManager.MgmtSvcCfg
     $workspaces = $agentcfg.GetCloudWorkspaces()      
     if($workspaces.Length -gt 1){
         Write-Log "Removing MDATP Workspace but keeping MMA agent for other Workspaces"
-        #$AgentCfg.RemoveCloudWorkspace($global:WorkspaceID)
+        $AgentCfg.RemoveCloudWorkspace($global:WorkspaceID)
         $AgentCfg.ReloadConfiguration()
     }
     else {
-        $restartneeded = Uninstall("HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D035C02C-D356-43F2-B8B7-4A1CE5BD5AE0}!UninstallString","MsiExec.exe /I{D035C02C-D356-43F2-B8B7-4A1CE5BD5AE0}")
+        if($AgentCfg.GetCloudWorkspaces().Item(0).workspaceId -eq $global:WorkspaceID){
+            $restartneeded = Uninstall "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D035C02C-D356-43F2-B8B7-4A1CE5BD5AE0}!UninstallString" "MsiExec.exe /I{D035C02C-D356-43F2-B8B7-4A1CE5BD5AE0}" 
+        }
+        else {
+            Write-Log ("The workspace ID "+$AgentCfg.GetCloudWorkspaces().Item(0).workspaceId+" is not the provided one. Exiting without doing anything on MMA agent.") "WARN"
+        }
     }
     
     return $restartneeded
@@ -982,14 +991,12 @@ Function Uninstall-Windows2008R2 {
 Function Uninstall-Windows2012R2 {
     $restartneeded = $false
 
-    Write-Log "UNIMPLEMENTED" "ERROR"
-
     if ($global:EDR) {
-        
+        $restartneeded = UninstallMMA
     }
 
     if ($global:EPP) {
-        
+        $restartneeded = UninstallSCEP
     }
 
     if ($restartneeded) {
@@ -1190,6 +1197,13 @@ Export-ModuleMember -Function Install-Windows2008R2
 Export-ModuleMember -Function Install-Windows2012R2
 Export-ModuleMember -Function Install-Windows2016
 Export-ModuleMember -Function Install-Windows2019
+Export-ModuleMember -Function Uninstall-Windows7
+Export-ModuleMember -Function Uninstall-Windows81
+Export-ModuleMember -Function Uninstall-Windows10
+Export-ModuleMember -Function Uninstall-Windows2008R2
+Export-ModuleMember -Function Uninstall-Windows2012R2
+Export-ModuleMember -Function Uninstall-Windows2016
+Export-ModuleMember -Function Uninstall-Windows2019
 Export-ModuleMember -Function Test-MDATPEICAR
 Export-ModuleMember -Function Confirm-MDATPInstallation
 Export-ModuleMember -Function Set-WindowsSecuritySettings
