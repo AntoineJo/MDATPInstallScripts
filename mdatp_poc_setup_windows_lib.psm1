@@ -939,14 +939,12 @@ Function Uninstall-Windows7 {
 Function Uninstall-Windows81 {
     $restartneeded = $false
 
-    Write-Log "UNIMPLEMENTED" "ERROR"
-
     if ($global:EDR) {
-        
+        $restartneeded = UninstallMMA
     }
 
     if ($global:EPP) {
-        
+        $restartneeded = UninstallSCEP
     }
 
     if ($restartneeded) {
