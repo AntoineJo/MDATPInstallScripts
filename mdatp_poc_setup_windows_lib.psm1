@@ -522,12 +522,20 @@ Function downloadAndInstallKB {
 Function OffboardingEDR {
     #Offboard machine
     try {
-        if (Test-Path $global:OffboardingPackage) {
+
+        if($null -eq $global:OffboardingPackageName) {
+            Write-Log "Offboarding Package is missing" "ERROR"
+        } 
+        else {
+           $OffboardingFullPath = $global:currentpath + '\' + $global:OffboardingPackageName
+        }
+        
+        if (Test-Path $OffboardingFullPath) {
             Write-Log "Offboarding package detected, proceed with offboarding"
-            Expand-Archive -Path $global:OffboardingPackage -DestinationPath $ENV:TEMP -Force
+            Expand-Archive -Path $OffboardingFullPath -DestinationPath $ENV:TEMP -Force
             #Edit cmd file to transform it to automated
             $OffboardingCMD = (Get-ChildItem -Recurse -Force $global:currentpath | Where-Object {!$_.PSIsContainer -and  ($_.Name -like "WindowsDefenderATPOffboardingScript*.cmd") }).Name
-            $file = Get-Content ($ENV:TEMP+"\"+($OffboardingCMD))
+            $file = Get-Content ($ENV:TEMP+"\"+$OffboardingCMD)
             $file.replace("pause","") > ($ENV:TEMP + "\WindowsDefenderATPLocalOffboardingScript_silent.cmd")
             Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOffboardingScript_silent.cmd") -Wait -Verb RunAs
             Write-Log "Offboarding completed" "SUCCESS"
