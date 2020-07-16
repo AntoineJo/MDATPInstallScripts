@@ -415,6 +415,54 @@ Function downloadAndInstallKB {
     return $restartneeded
 }
 
+Function OffboardingEDR {
+    #Offboard machine
+    try {
+        if (Test-Path $global:OffboardingPackage) {
+            Write-Log "Offboarding package detected, proceed with offboarding"
+            Expand-Archive -Path $global:OffboardingPackage -DestinationPath $ENV:TEMP -Force
+            #Edit cmd file to transform it to automated
+            $OffboardingCMD = (Get-ChildItem -Recurse -Force $global:currentpath | Where-Object {!$_.PSIsContainer -and  ($_.Name -like "WindowsDefenderATPOffboardingScript*.cmd") }).Name
+            $file = Get-Content ($ENV:TEMP+"\"+($OffboardingCMD))
+            $file.replace("pause","") > ($ENV:TEMP + "\WindowsDefenderATPLocalOffboardingScript_silent.cmd")
+            Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOffboardingScript_silent.cmd") -Wait -Verb RunAs
+            Write-Log "Offboarding completed" "SUCCESS"
+        }
+        else {
+            Write-Log "Issue finding the offboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script"
+        }
+    }
+    catch {
+        Write-Log "Error while trying to offboard the machine to MDATP" "ERROR"
+        Write-Log $_ "ERROR"
+        Exit
+    }
+}
+
+Function OnboardingEDR {
+    #Onboard machine
+    try {
+        if (Test-Path $global:OnboardingPackage) {
+            Write-Log "Onboarding package detected, proceed with onboarding"
+            Expand-Archive -Path $global:OnboardingPackage -DestinationPath $ENV:TEMP -Force
+            #Edit cmd file to transform it to automated
+            $file = get-content ($ENV:TEMP+"\WindowsDefenderATPLocalOnboardingScript.cmd")
+            $file[1] = "GOTO SCRIPT_START"
+            $file.replace("pause","") > ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd")
+
+            Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd") -Wait -Verb RunAs
+            Write-Log "Onboarding completed" "SUCCESS"
+        }
+        else {
+            Write-Log "Issue finding the onboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script"
+        }
+    }
+    catch {
+        Write-Log "Error while trying to onboard the machine to MDATP" "ERROR"
+        Write-Log $_ "ERROR"
+        Exit
+    }
+}
 Function Install-Windows7 {
 
     Write-Log "Handle Windows 7"
@@ -511,7 +559,6 @@ Function Install-Windows81 {
 
 Function Get-AVInformation {
     get-wmiObject AntivirusProduct -Namespace root\SecurityCenter2 > $ENV:TEMP + '\MDATP\WMI_Antivirus.log'
-    get-
 }
 
 Function Install-Windows10 {
@@ -539,28 +586,37 @@ Function Install-Windows10 {
     }
 
     if ($global:EDR) {
-        #Onboard machine
-        try {
-            if (Test-Path $global:OnboardingPackage) {
-                Write-Log "Onboarding package detected, proceed with onboarding"
-                Expand-Archive -Path $global:OnboardingPackage -DestinationPath $ENV:TEMP -Force
-                #Edit cmd file to transform it to automated
-                $file = get-content ($ENV:TEMP+"\WindowsDefenderATPLocalOnboardingScript.cmd")
-                $file[1] = "GOTO SCRIPT_START"
-                $file.replace("pause","") > ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd")
+        $restartneeded = OnboardingEDR
+    }
 
-                Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd") -Wait -Verb RunAs
-                Write-Log "Onboarding completed" "SUCCESS"
+    if ($restartneeded) {
+        Write-Log "Installation completed. Restart is required" "INFO"
+        <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+        $answer = Read-Host
+        do {
+            switch ($answer) {
+                "y" { $fin = $true; shutdown.exe -r -t 60; Write-Log "Reboot will occurs in one Minute"; break }
+                "n" { $fin = $true; Write-Log "User choose not to reboot now" }
+                Default {
+                    $fin = $false; Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+                    $answer = Read-Host
+                }
             }
-            else {
-                Write-Log "Issue finding the onboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script"
-            }
-        }
-        catch {
-            Write-Log "Error while trying to onboard the machine to MDATP" "ERROR"
-            Write-Log $_ "ERROR"
-            Exit
-        }
+        } while (!$fin)#>
+    }
+}
+
+Function Uninstall-Windows10 {
+    
+    Write-Log "Handle Windows 10 Uninstallation"
+
+    if ($global:EPP) {
+        # Test if MDAV is already installed and running
+        $restartneeded = Set-WindowsSecuritySettings -ProtectionMode Disabled
+    }
+
+    if ($global:EDR) {
+        $restartneeded = OffboardingEDR
     }
 
     if ($restartneeded) {
@@ -815,6 +871,36 @@ Function Install-Windows2019 {
     }
 }
 
+Function Uninstall-Windows2019 {
+    
+    Write-Log "Handle Windows Server 2019 Uninstallation"
+
+    if ($global:EPP) {
+        # Test if MDAV is already installed and running
+        $restartneeded = Set-WindowsSecuritySettings -ProtectionMode Disabled
+    }
+
+    if ($global:EDR) {
+        $restartneeded = OffboardingEDR
+    }
+
+    if ($restartneeded) {
+        Write-Log "Installation completed. Restart is required" "INFO"
+        <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+        $answer = Read-Host
+        do {
+            switch ($answer) {
+                "y" { $fin = $true; shutdown.exe -r -t 60; Write-Log "Reboot will occurs in one Minute"; break }
+                "n" { $fin = $true; Write-Log "User choose not to reboot now" }
+                Default {
+                    $fin = $false; Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+                    $answer = Read-Host
+                }
+            }
+        } while (!$fin)#>
+    }
+}
+
 Function Set-WindowsSecuritySettings {
 
     # This parameter handles the Attack Surface Reduction, Controlled Folder Access and Network Protection settings mode (Audit or Enabled)
@@ -823,8 +909,8 @@ Function Set-WindowsSecuritySettings {
         [String]$ProtectionMode = "AuditMode"
     )
 
-    if (!($ProtectionMode -eq "AuditMode" -or $ProtectionMode -eq "Enabled")) {
-        Write-Log "Protection Mode parameter for Set-WindowsSecuritySettings function is not AuditMode or Enabled, exiting"
+    if (!($ProtectionMode -eq "AuditMode" -or $ProtectionMode -eq "Enabled" -or $ProtectionMode -eq "Disabled")) {
+        Write-Log "Protection Mode parameter for Set-WindowsSecuritySettings function is not AuditMode, Enabled or Disabled exiting"
         return
     }
 
@@ -902,7 +988,7 @@ Function Set-WindowsSecuritySettings {
         switch ($Winver.WindowsVersion) {
 
             { $_ -ge "1709" } {
-                #Attack Surface Reduction rules, block mode by default, can be changed to Audit if you don't want to be blocked
+                #Attack Surface Reduction rules, audit mode by default, can be changed to block if you want to enforce settings
                 Write-Log 'Block all Office applications from creating child processes' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids D4F940AB-401B-4EFC-AADC-AD5F3C50688A -AttackSurfaceReductionRules_Actions $ProtectionMode
                 Write-Log 'Block executable content from email client and webmail' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550 -AttackSurfaceReductionRules_Actions $ProtectionMode
                 Write-Log 'Block execution of potentially obfuscated scripts' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids 5BEB7EFE-FD9A-4556-801D-275E5FFC04CC -AttackSurfaceReductionRules_Actions $ProtectionMode
@@ -968,11 +1054,15 @@ Export-ModuleMember -Function Write-Log
 Export-ModuleMember -Function Install-Windows7
 Export-ModuleMember -Function Install-Windows81
 Export-ModuleMember -Function Install-Windows10
+Export-ModuleMember -Function Uninstall-Windows10
 Export-ModuleMember -Function Install-Windows2008R2
 Export-ModuleMember -Function Install-Windows2012R2
 Export-ModuleMember -Function Install-Windows2016
 Export-ModuleMember -Function Install-Windows2019
+Export-ModuleMember -Function Uninstall-Windows2019
 Export-ModuleMember -Function Test-MDATPEICAR
 Export-ModuleMember -Function Confirm-MDATPInstallation
 Export-ModuleMember -Function Set-WindowsSecuritySettings
+Export-ModuleMember -Function OnboardingEDR
+Export-ModuleMember -Function OffboardingEDR
 Export-ModuleMember -Function Add-MachineTag

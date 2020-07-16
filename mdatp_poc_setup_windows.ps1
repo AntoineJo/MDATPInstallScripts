@@ -82,6 +82,8 @@ else {
 }
 
 $global:OnboardingPackage = $global:currentpath + '\WindowsDefenderATPOnboardingPackage.zip'
+$global:OffboardingPackageName = (Get-ChildItem -Recurse -Force $global:currentpath | Where-Object {!$_.PSIsContainer -and  ($_.Name -like "*WindowsDefenderATPOffboardingPackage*") }).Name
+$global:OffboardingPackage = $global:currentpath + '\' + $global:OffboardingPackageName
 
 if (!(Test-Path ($ENV:TEMP + '\MDATP\'))) {
     New-Item ($ENV:TEMP + '\MDATP') -ItemType Directory | Out-Null
