@@ -1046,8 +1046,8 @@ Function Set-WindowsSecuritySettings {
         [String]$ProtectionMode = "AuditMode"
     )
 
-    if (!($ProtectionMode -eq "AuditMode" -or $ProtectionMode -eq "Enabled")) {
-        Write-Log "Protection Mode parameter for Set-WindowsSecuritySettings function is not AuditMode or Enabled, exiting"
+    if (!($ProtectionMode -eq "AuditMode" -or $ProtectionMode -eq "Enabled" -or $ProtectionMode -eq "Disabled")) {
+        Write-Log "Protection Mode parameter for Set-WindowsSecuritySettings function is not AuditMode, Enabled or Disabled, exiting"
         return
     }
 
