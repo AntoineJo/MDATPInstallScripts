@@ -562,7 +562,7 @@ Function OnboardingEDR {
             Write-Log "Onboarding completed" "SUCCESS"
         }
         else {
-            Write-Log "Issue finding the onboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script"
+            Write-Log "Issue finding the onboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script" "ERROR"
         }
     }
     catch {
@@ -941,15 +941,7 @@ Function Install-Windows2019 {
     if ($global:EDR) {
         #Onboard machine
         try {
-            if (Test-Path $global:OnboardingPackage) {
-                Write-Log "Onboarding package detected, proceed with onboarding"
-                Expand-Archive -Path $global:OnboardingPackage -DestinationPath $global:currentpath -Force
-                Start-Process -FilePath ($global:currentpath + "\WindowsDefenderATPLocalOnboardingScript.cmd") -Wait -Verb RunAs
-                Write-Log "Onboarding completed" "SUCCESS"
-            }
-            else {
-                Write-Log "Issue finding the onboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script"
-            }
+            $restartneeded = OnboardingEDR
         }
         catch {
             Write-Log "Error while trying to onboard the machine to MDATP" "ERROR"
