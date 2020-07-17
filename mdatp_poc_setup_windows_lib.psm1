@@ -1143,6 +1143,7 @@ Function Set-WindowsSecuritySettings {
         Set-MpPreference -DisableRemovableDriveScanning 0
 
         #Enable potentially unwanted apps
+        Write-Log "INFO" "$ProtectionMode PUA Protection"
         Set-MpPreference -PUAProtection $ProtectionMode
 
         #Enable Email & Archive scan
@@ -1174,10 +1175,12 @@ Function Set-WindowsSecuritySettings {
 
         #LOB apps should be whitelisted
         #Enable ransomware protection"
+        Write-Log "INFO" "$ProtectionMode Controlled Folder Access Protection"
         Set-MpPreference -EnableControlledFolderAccess $ProtectionMode
 
         #this is something to be discused with security - same as smartscreen
         #Enable network protection"
+        Write-Log "INFO" "$ProtectionMode Network Protection"
         Set-MpPreference -EnableNetworkProtection $ProtectionMode
 
         #"Increase default protection level"
@@ -1198,6 +1201,7 @@ Function Set-WindowsSecuritySettings {
 
             { $_ -ge "1709" } {
                 #Attack Surface Reduction rules, audit mode by default, can be changed to block if you want to enforce settings
+                Write-Log "INFO" "$ProtectionMode ASR Protection"
                 Write-Log 'Block all Office applications from creating child processes' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids D4F940AB-401B-4EFC-AADC-AD5F3C50688A -AttackSurfaceReductionRules_Actions $ProtectionMode
                 Write-Log 'Block executable content from email client and webmail' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550 -AttackSurfaceReductionRules_Actions $ProtectionMode
                 Write-Log 'Block execution of potentially obfuscated scripts' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids 5BEB7EFE-FD9A-4556-801D-275E5FFC04CC -AttackSurfaceReductionRules_Actions $ProtectionMode
