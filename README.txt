@@ -24,7 +24,7 @@ ________________________________________________
 Microsoft Defender ATP POC Installation Scripts
 ________________________________________________
 
-This script installs and configure: 
+This script installs and configures: 
 - Microsoft Defender AV
 - Microsoft Defender EDR
 - Network Protection (Audit mode by default)
