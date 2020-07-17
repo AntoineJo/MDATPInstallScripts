@@ -77,14 +77,14 @@ mdatp_poc_setup_windows.ps1 -installEDR [-WorkspaceKey <string>] [-WorkspaceID <
 mdatp_poc_setup_windows.ps1 -DownloadContent -OS <string> [<CommonParameters>]
 
 *** Uninstallation 
-* Uninstall EPP & EDR for Windows 10
+* Uninstall EPP & EDR for Windows 10 and Windows Server 2019
 mdatp_poc_setup_windows.ps1 -uninstallEPP -uninstallEDR 
 * Uninstall EDR for Windows 7/8.1/Server 2008 R2/2012 R2/2016
 mdatp_poc_setup_windows.ps1 -uninstallEDR -WorkspaceId ....
 
 * WorkspaceID & WorkspaceKey are required for Windows 7/8.1/Server 2008 R2/2012 R2/2016 due to MMA agent usage
 * MDATP Tag is optional, it will define a TAG on the computer for MDATP
-* ASRMode is optional, it will set ASR, Control Folder Access and Network Protection to Audit mode or enable them in block mode - possible values are AuditMode, EnforcedMode, Disabled
+* ASRMode is optional, it will set Attack Surface Reduction, Control Folder Access and Network Protection to Audit mode or enable them in block mode - possible values are AuditMode, EnforcedMode, Disabled
 * OS must be used for DownloadContent, possible values are one of: "All", "Windows7x64", "Windows8.1x64", "Windows10x64", "Windows2008R2", "Windows2012R2", "Windows2016", "Windows2019"
 
 --------------------------------------------
