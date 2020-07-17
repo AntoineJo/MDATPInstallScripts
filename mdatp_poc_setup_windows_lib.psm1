@@ -1023,7 +1023,7 @@ Function Uninstall-Windows2008R2 {
     }
 
     if ($restartneeded) {
-        Write-Log "Uninstallation completed. Restart is required" "INFO"
+        Write-Log "Uninstallation completed. Restart is required" "SUCCESS"
     }
 }
 
@@ -1039,7 +1039,7 @@ Function Uninstall-Windows2012R2 {
     }
 
     if ($restartneeded) {
-        Write-Log "Uninstallation completed. Restart is required" "INFO"
+        Write-Log "Uninstallation completed. Restart is required" "SUCCESS"
     }
 }
 
@@ -1106,7 +1106,7 @@ Function Uninstall-Windows2019 {
     }
 
     if ($restartneeded) {
-        Write-Log "Installation completed. Restart is required" "INFO"
+        Write-Log "Uninstallation completed. Restart is required" "SUCCESS"
         <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
         $answer = Read-Host
         do {
