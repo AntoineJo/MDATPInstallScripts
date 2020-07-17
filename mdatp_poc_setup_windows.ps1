@@ -289,8 +289,7 @@ if (!$global:downloadOnly) {
         Add-MachineTag
     }
     if(!$global:uninstall){
-        Confirm-MDATPInstallation
-        Test-MDATPEICAR    
+        Confirm-MDATPInstallation 
     }
 }
 else {

