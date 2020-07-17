@@ -1,6 +1,7 @@
 # DISCLAIMER
 # Script provided as-is without any garantee it will work and is not supported by Microsoft
 #
+
 Param(
     
     [Parameter(Mandatory = $false)]
@@ -10,6 +11,14 @@ Param(
     [Parameter(Mandatory = $false)]
     [switch]
     $installEDR,
+
+    [Parameter(Mandatory = $false)]
+    [switch]
+    $uninstallEPP,
+
+    [Parameter(Mandatory = $false)]
+    [switch]
+    $uninstallEDR,
 
     [Parameter(Mandatory = $false)]
     [String]
@@ -24,7 +33,7 @@ Param(
     $MDATPTag,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("AuditMode", "EnforcedMode")]
+    [ValidateSet("AuditMode", "EnforcedMode","Disabled")]
     [String]
     $ASRMode = "AuditMode",
 
@@ -40,7 +49,6 @@ Param(
 )
 
 
-
 ################################
 #DO NOT CHANGE ANYTHING AFTER THAT POINT
 # Initialize global variables
@@ -51,6 +59,7 @@ $global:WorkspaceKey = $WorkspaceKey
 switch ($ASRMode) {
     "AuditMode" { $global:ASRValue = "AuditMode" }
     "EnforcedMode" { $global:ASRValue = "Enabled" }
+    "Disabled" { $global:ASRValue = "Disabled" }
 }
 
 $global:MachineTag = $MDATPTag
@@ -68,10 +77,22 @@ else {
     $global:EDR = $false
 }
 
+# Logic to handle uninstallation with the same global variables
+if($uninstallEDR -or $uninstallEPP){
+    $global:uninstall = $true
+    if($uninstallEPP){
+        $global:EPP = $true
+    }
+    if($uninstallEDR){
+        $global:EDR = $true
+    }
+}
+else {
+    $global:uninstall = $false
+}
+
 $global:downloadOnly = $DownloadContent
-
 $global:OSName = $OS
-
 $global:currentpath = split-path $SCRIPT:MyInvocation.MyCommand.Path -parent
 
 if ($global:downloadOnly) {
@@ -82,6 +103,7 @@ else {
 }
 
 $global:OnboardingPackage = $global:currentpath + '\WindowsDefenderATPOnboardingPackage.zip'
+$global:OffboardingPackageName = (Get-ChildItem -Recurse -Force $global:currentpath | Where-Object {!$_.PSIsContainer -and  ($_.Name -like "*WindowsDefenderATPOffboardingPackage*") }).Name
 
 if (!(Test-Path ($ENV:TEMP + '\MDATP\'))) {
     New-Item ($ENV:TEMP + '\MDATP') -ItemType Directory | Out-Null
@@ -90,7 +112,6 @@ $global:outDir = $ENV:TEMP + '\MDATP\'
 
 $global:resultsDir = $global:outDir
 $global:logfile = $ENV:TEMP + '\MDATP\install.log'
-
 
 $global:logfile = $global:resultsDir + '\install.log'
 if (Test-Path $global:logfile) {
@@ -110,7 +131,6 @@ if (!$global:downloadOnly) {
     $OSinfo = get-wmiobject win32_operatingsystem
     Write-Log ("OS : " + $OSinfo.Caption + " | Build number: " + $OSinfo.Version + " | SKU: " + $OSinfo.OperatingSystemSKU)
 
-
     if ($OSinfo.Version -like "6.1.7601*") {
         #Win7/Server 2008 R2
 
@@ -123,14 +143,26 @@ if (!$global:downloadOnly) {
                 return
             }
             $global:OSName = "Windows7x64"
-            Install-Windows7
+
+            if(!$global:uninstall) {
+                Install-Windows7
+            }
+            else {
+                Uninstall-Windows7
+            }
 
         }
         elseif (("7", "8", "10", "36", "37", "38") -contains $OSinfo.OperatingSystemSKU) {
             #Windows Server 2008 R2
             Write-Log "Windows Server 2008 R2"
             $global:OSName = "Windows2008R2"
-            Install-Windows2008R2
+
+            if(!$global:uninstall) {
+                Install-Windows2008R2
+            }
+            else {
+                Uninstall-Windows2008R2
+            }
 
         }
         else {
@@ -151,7 +183,13 @@ if (!$global:downloadOnly) {
                 return
             }
             $global:OSName = "Windows8.1x64"
-            Install-Windows81
+            
+            if(!$global:uninstall) {
+                Install-Windows81
+            }
+            else {
+                Uninstall-Windows81
+            }
 
         }
         elseif (("7", "8", "10", "36", "37", "38") -contains $OSinfo.OperatingSystemSKU) {
@@ -163,7 +201,13 @@ if (!$global:downloadOnly) {
                 return
             }
             $global:OSName = "Windows2012R2"
-            Install-Windows2012R2
+            
+            if(!$global:uninstall) {
+                Install-Windows2012R2
+            }
+            else {
+                Uninstall-Windows2012R2
+            }
 
         }
         else {
@@ -179,9 +223,18 @@ if (!$global:downloadOnly) {
             #Windows 10 Pro, Pro N, Enterprise or Enterprise N
             Write-Log "Windows 10 Pro, Pro N, Enterprise or Enterprise N"
             $global:OSName = "Windows10x64"
-            Install-Windows10
-            if ($global:EPP) {
-                Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
+            
+            if(!$global:uninstall) {
+                Install-Windows10
+                if ($global:EPP -or $global:ASRValue) {
+                    Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
+                }
+            }
+            else {
+                Uninstall-Windows10
+                if ($global:EPP) {
+                    Set-WindowsSecuritySettings -ProtectionMode Disabled # can be changed to "Enabled" for ASR, CFA, NP
+                }
             }
 
         }
@@ -190,16 +243,31 @@ if (!$global:downloadOnly) {
                 #Windows Server 2016
                 Write-Log "Windows Server 2016"
                 $global:OSName = "Windows2016"
-                Install-Windows2016
+                
+                if(!$global:uninstall) {
+                    Install-Windows2016
+                }
+                else {
+                    Uninstall-Windows2016
+                }
 
             }
             else {
                 #Windows Server 2019
                 Write-Log "Windows Server 2019"
                 $global:OSName = "Windows2019"
-                Install-Windows2019
-                if ($global:EPP) {
-                    Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
+
+                if(!$global:uninstall) {
+                    Install-Windows2019
+                    if ($global:EPP -or $global:ASRValue) {
+                        Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
+                    }
+                }
+                else {
+                    Uninstall-Windows2019
+                    if ($global:EPP) {
+                        Set-WindowsSecuritySettings -ProtectionMode Disabled # can be changed to "Enabled" for ASR, CFA, NP
+                    }
                 }
 
             }   
@@ -220,8 +288,9 @@ if (!$global:downloadOnly) {
     if ($global:EDR) {
         Add-MachineTag
     }
-    Confirm-MDATPInstallation
-    Test-MDATPEICAR    
+    if(!$global:uninstall){
+        Confirm-MDATPInstallation 
+    }
 }
 else {
     

@@ -5,7 +5,7 @@
 *       There is no support for these scripts by Microsoft or by any of the authors                                 *
 *       Microsoft or authors are not responsible for impact on your environement if you run these scripts           *
 *       You should understand and validate these scripts before using them                                          *
-*       These scripts include the download and installation of Microsoft binaires:                                  *
+*       These scripts include the download, installation or uninstallation of Microsoft binaires:                   *
 *           - Windows Updates                                                                                       *
 *           - Framework .NET 4.5                                                                                    *
 *           - Microsoft Monitoring Agent                                                                            *
@@ -14,13 +14,17 @@
 *       You should only use these for test purpose and with the appropriate licence,                                *
 *       the script does not provide licence right to use these products                                             *
 *                                                                                                                   *
+*       If you have SCCM or Intune, we do recommend that you use Microsoft Endpoint Manager (SCCM/Intune)           *
+*       instead of these scripts. If you have a third party management system or if your devices are in             *
+*       workgroup you can consider these scripts for your tests                                                     *
+*                                                                                                                   *
 *********************************************************************************************************************
 ________________________________________________
 
-Microsoft Defender ATP Installation Scripts
+Microsoft Defender ATP POC Installation Scripts
 ________________________________________________
 
-This script installs and sets on devices in Workgroup : 
+This script installs and configure: 
 - Microsoft Defender AV
 - Microsoft Defender EDR
 - Network Protection (Audit mode by default)
@@ -58,18 +62,29 @@ Windows Server 2019 x64
 -------------------------------------------
 Syntax
 -------------------------------------------
+*** Installation 
+(if file are not available locally, they will be downloaded automatically. If you want to avoid file download, please use the download content switch to prepare a package)
+
 * Install EPP & EDR
 mdatp_poc_setup_windows.ps1 -installEPP -installEDR [-WorkspaceKey <string>] [-WorkspaceID <string>] [-MDATPTag <string>] [-ASRMode <string>] [<CommonParameters>]
 * Install EPP only
 mdatp_poc_setup_windows.ps1 -installEPP [-ASRMode <string>] [<CommonParameters>]
 * Install EDR only
 mdatp_poc_setup_windows.ps1 -installEDR [-WorkspaceKey <string>] [-WorkspaceID <string>] [-MDATPTag <string>] [<CommonParameters>]
+
+*** Prepare a package for central distribution on endpoints without SCCM\Intune
 * Download binaires locally in order to package the installation
 mdatp_poc_setup_windows.ps1 -DownloadContent -OS <string> [<CommonParameters>]
 
-* WorkspaceID & WorkspaceKey are required for Windows 7/8.1/Server 2008 R2/2012 R2/2016
+*** Uninstallation 
+* Uninstall EPP & EDR for Windows 10
+mdatp_poc_setup_windows.ps1 -uninstallEPP -uninstallEDR 
+* Uninstall EDR for Windows 7/8.1/Server 2008 R2/2012 R2/2016
+mdatp_poc_setup_windows.ps1 -uninstallEDR -WorkspaceId ....
+
+* WorkspaceID & WorkspaceKey are required for Windows 7/8.1/Server 2008 R2/2012 R2/2016 due to MMA agent usage
 * MDATP Tag is optional, it will define a TAG on the computer for MDATP
-* ASRMode is optional, it will set ASR, Control Folder Access and Network Protection to Audit mode or enable them in block mode - possible values are AuditMode or EnforcedMode
+* ASRMode is optional, it will set ASR, Control Folder Access and Network Protection to Audit mode or enable them in block mode - possible values are AuditMode, EnforcedMode, Disabled
 * OS must be used for DownloadContent, possible values are one of: "All", "Windows7x64", "Windows8.1x64", "Windows10x64", "Windows2008R2", "Windows2012R2", "Windows2016", "Windows2019"
 
 --------------------------------------------
@@ -83,3 +98,6 @@ Examples
 
 * Install EPP only on Windows 10
 .\mdatp_poc_setup_windows.ps1 -installEPP -ASRMode EnforcedMode
+
+* Uninstall EPP only on Windows Server 2008R2
+.\mdatp_poc_setup_windows.ps1 -uninstallEPP

@@ -39,12 +39,6 @@ Function Write-Log {
     }
 }
 
-Function Test-MDATPEICAR {
-    Write-Log "Connectivity test with an EICAR alert"
-    (New-Object Net.WebClient).DownloadFile("https://aka.ms/ioavtest", ($global:currentpath + "\ioav.exe"))
-    #powershell.exe -NoExit -ExecutionPolicy Bypass -WindowStyle Hidden $ErrorActionPreference= 'silentlycontinue';(New-Object System.Net.WebClient).DownloadFile('http://127.0.0.1/1.exe', 'C:\\test-WDATP-test\\invoice.exe');Start-Process 'C:\\test-WDATP-test\\invoice.exe'
-}
-
 Function Confirm-MDATPInstallation {
     if ( ($null -eq $global:downloadLocation) -or ($null -eq $global:resultsDir)) {
         Write-Log "Download location path not set. Exiting" "ERROR"
@@ -82,8 +76,10 @@ Function Confirm-MDATPInstallation {
                 if (Test-Path "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab") {
                     Remove-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab"
                 }
-                Start-Process -FilePath ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe') -ArgumentList ("-GetFiles") -Wait -Verb runas
-                Copy-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab" ($global:resultsDir + '\MpSupportFiles.cab') -Force
+                if (Test-path ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe')) {
+                    Start-Process -FilePath ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe') -ArgumentList ("-GetFiles") -Wait -Verb runas
+                    Copy-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab" ($global:resultsDir + '\MpSupportFiles.cab') -Force
+                }
             }
         }
         catch {
@@ -153,7 +149,7 @@ function Expand-ZipFile {
     }
         
     catch {
-        Write-Log ($_.Exception.Message) "WARNING"
+        Write-Log ($_.Exception.Message) "WARN"
     }
 }
 
@@ -236,6 +232,76 @@ Function downloadAndInstallSCEP {
         Write-Log "Getting Windows Update logs"
         Copy-Item "C:\Windows\WindowsUpdate.log" ($global:resultsDir + '\')  -Force
     }
+}
+
+Function Uninstall($uninstallKeyPathValue, $defaultUninstallcmdLine) {
+
+    Write-Log "Uninstalling function KeyPathValue $uninstallKeyPathValue" "DEBUG"
+    Write-Log "Uninstalling function KeyPathValue $defaultUninstallcmdLine" "DEBUG"
+
+    $uninstallKeyPath = ($uninstallKeyPathValue.split("!"))[0]
+    $uninstallProperty = ($uninstallKeyPathValue.split("!"))[1]
+    $cmdline = ""
+    $needrestart = $false
+
+    if (!(Test-Path $uninstallKeyPath)) {
+        #if uninstall key is not found
+        Write-Log "Could not find uninstall key under $uninstallKeyPath" "WARN"
+        Write-Log "Test standard uninstall cmd line $defaultUninstallcmdLine" "WARN"
+        $cmdline = $defaultUninstallcmdLine
+    }
+    else {
+        
+        $uninstallKey = Get-ItemProperty $uninstallKeyPath -Name $uninstallProperty 2> $null
+        
+        if ($null -eq $uninstallKey) {
+            #if uninstall value is not found
+            Write-Log "Could not find uninstall key/value under $uninstallKeyPath!$uninstallProperty" "WARN"
+            Write-Log "Test standard uninstall cmd line $defaultUninstallcmdLine" "WARN"
+            $cmdline = $defaultUninstallcmdLine
+        }
+        else {
+            $cmdline = $uninstallKey.UninstallString
+        }
+    }
+
+    $cmdline = $cmdline.split("/")
+    Write-Log ("Trying to locate uninstall binary " + $cmdline[0]) "INFO"
+    $cmdline[0] = $cmdline[0].Replace('"', '')
+
+    if ((Test-Path $cmdline[0]) -or ($cmdline[0].ToLower().trim() -eq "msiexec.exe")) {
+        Write-Log "Uninstalling" "INFO"
+        if ($cmdline[0].ToLower().trim() -eq "msiexec.exe") {
+            Start-Process -FilePath $cmdline[0] -ArgumentList("/" + $cmdline[1], "/quiet", "/norestart")
+        }
+        else {
+            Start-Process -FilePath $cmdline[0] -ArgumentList("/" + $cmdline[1], "/s")
+        }
+        $needrestart = $true
+    }
+    else {
+        Write-Log "Uninstall binary not found" "ERROR"
+        $needrestart = $false
+    }
+    
+    return $needrestart
+}
+
+Function UninstallSCEP {
+
+    $needrestart = $false
+
+    #check if SCEP is running, if no, exit
+    $scepProcess = get-process -ProcessName MsMpEng 2> $null
+    if (!$scepProcess) {
+        Write-Log "SCEP is not running, exiting" "INFO"
+        return $needrestart
+    }
+    
+    $needrestart = Uninstall "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft Security Client!UninstallString" "C:\Program Files\Microsoft Security Client\Setup.exe /x"
+
+    return $needrestart
+        
 }
 
 Function getOMSWorkspaceInfo {
@@ -356,6 +422,40 @@ Function downloadAndInstallMMA {
     return $restartneeded
 }
 
+Function UninstallMMA {
+    Write-Log "Check if MMA Agent is already installed"
+    $isInstalled = $false
+    $isInstalled = (Test-Path -Path "HKLM:\Software\Classes\AgentConfigManager.MgmtSvcCfg")
+
+    if (!$isInstalled) {
+        Write-Log "MMA Agent is not installed, exiting" "INFO"
+        return $restartneeded
+    }
+
+    #Getting MMA configuration, check if there is multiple workspace
+    # if so, then remove the MDATP Workspace and keep the agent
+    # else uninstall the MMA agent
+
+    Write-Log "MMA Agent is already installed, so we remove the MDATP workspace to the existing MMA agent or uninstall it"
+    $AgentCfg = New-Object -ComObject AgentConfigManager.MgmtSvcCfg
+    $workspaces = $agentcfg.GetCloudWorkspaces()      
+    if ($workspaces.Length -gt 1) {
+        Write-Log "Removing MDATP Workspace but keeping MMA agent for other Workspaces"
+        $AgentCfg.RemoveCloudWorkspace($global:WorkspaceID)
+        $AgentCfg.ReloadConfiguration()
+    }
+    else {
+        if ($AgentCfg.GetCloudWorkspaces().Item(0).workspaceId -eq $global:WorkspaceID) {
+            $restartneeded = Uninstall "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D035C02C-D356-43F2-B8B7-4A1CE5BD5AE0}!UninstallString" "MsiExec.exe /I{D035C02C-D356-43F2-B8B7-4A1CE5BD5AE0}" 
+        }
+        else {
+            Write-Log ("The workspace ID " + $AgentCfg.GetCloudWorkspaces().Item(0).workspaceId + " is not the provided one. Exiting without doing anything on MMA agent.") "WARN"
+        }
+    }
+    
+    return $restartneeded
+}
+
 Function downloadAndInstallKB {
     [CmdletBinding()]
     param (
@@ -415,6 +515,62 @@ Function downloadAndInstallKB {
     return $restartneeded
 }
 
+Function OffboardingEDR {
+    #Offboard machine
+    try {
+
+        if ($null -eq $global:OffboardingPackageName) {
+            Write-Log "Offboarding Package is missing" "ERROR"
+        } 
+        else {
+            $OffboardingFullPath = $global:currentpath + '\' + $global:OffboardingPackageName
+        }
+        
+        if (Test-Path $OffboardingFullPath) {
+            Write-Log "Offboarding package detected, proceed with offboarding"
+            Expand-Archive -Path $OffboardingFullPath -DestinationPath $ENV:TEMP -Force
+            #Edit cmd file to transform it to automated
+            $OffboardingCMD = (Get-ChildItem -Recurse -Force $ENV:TEMP | Where-Object { !$_.PSIsContainer -and ($_.Name -like "WindowsDefenderATPOffboardingScript*.cmd") }).Name
+            $file = Get-Content ($ENV:TEMP + "\" + $OffboardingCMD)
+            $file.replace("pause", "") > ($ENV:TEMP + "\WindowsDefenderATPLocalOffboardingScript_silent.cmd")
+            Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOffboardingScript_silent.cmd") -Wait -Verb RunAs
+            Write-Log "Offboarding completed" "SUCCESS"
+        }
+        else {
+            Write-Log "Issue finding the offboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script"
+        }
+    }
+    catch {
+        Write-Log "Error while trying to offboard the machine to MDATP" "ERROR"
+        Write-Log $_ "ERROR"
+        Exit
+    }
+}
+
+Function OnboardingEDR {
+    #Onboard machine
+    try {
+        if (Test-Path $global:OnboardingPackage) {
+            Write-Log "Onboarding package detected, proceed with onboarding"
+            Expand-Archive -Path $global:OnboardingPackage -DestinationPath $ENV:TEMP -Force
+            #Edit cmd file to transform it to automated
+            $file = get-content ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript.cmd")
+            $file[1] = "GOTO SCRIPT_START"
+            $file.replace("pause", "") > ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd")
+
+            Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd") -Wait -Verb RunAs
+            Write-Log "Onboarding completed" "SUCCESS"
+        }
+        else {
+            Write-Log "Issue finding the onboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script" "ERROR"
+        }
+    }
+    catch {
+        Write-Log "Error while trying to onboard the machine to MDATP" "ERROR"
+        Write-Log $_ "ERROR"
+        Exit
+    }
+}
 Function Install-Windows7 {
 
     Write-Log "Handle Windows 7"
@@ -511,7 +667,6 @@ Function Install-Windows81 {
 
 Function Get-AVInformation {
     get-wmiObject AntivirusProduct -Namespace root\SecurityCenter2 > $ENV:TEMP + '\MDATP\WMI_Antivirus.log'
-    get-
 }
 
 Function Install-Windows10 {
@@ -539,28 +694,33 @@ Function Install-Windows10 {
     }
 
     if ($global:EDR) {
-        #Onboard machine
-        try {
-            if (Test-Path $global:OnboardingPackage) {
-                Write-Log "Onboarding package detected, proceed with onboarding"
-                Expand-Archive -Path $global:OnboardingPackage -DestinationPath $ENV:TEMP -Force
-                #Edit cmd file to transform it to automated
-                $file = get-content ($ENV:TEMP+"\WindowsDefenderATPLocalOnboardingScript.cmd")
-                $file[1] = "GOTO SCRIPT_START"
-                $file.replace("pause","") > ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd")
+        $restartneeded = OnboardingEDR
+    }
 
-                Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd") -Wait -Verb RunAs
-                Write-Log "Onboarding completed" "SUCCESS"
+    if ($restartneeded) {
+        Write-Log "Installation completed. Restart is required" "INFO"
+        <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+        $answer = Read-Host
+        do {
+            switch ($answer) {
+                "y" { $fin = $true; shutdown.exe -r -t 60; Write-Log "Reboot will occurs in one Minute"; break }
+                "n" { $fin = $true; Write-Log "User choose not to reboot now" }
+                Default {
+                    $fin = $false; Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+                    $answer = Read-Host
+                }
             }
-            else {
-                Write-Log "Issue finding the onboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script"
-            }
-        }
-        catch {
-            Write-Log "Error while trying to onboard the machine to MDATP" "ERROR"
-            Write-Log $_ "ERROR"
-            Exit
-        }
+        } while (!$fin)#>
+    }
+}
+
+Function Uninstall-Windows10 {
+    
+    Write-Log "Handle Windows 10 Uninstallation"
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = OffboardingEDR
     }
 
     if ($restartneeded) {
@@ -589,7 +749,7 @@ Function Install-Windows2008R2 {
     #KB4074598 Feb2018 monthly rollup replaced by full update of Windows 2008 R2, for that we need to install KB410378 (replacement for required KB4074598) and KB3125574 (replacement for required KB3080149)
 
     $kburl = @{KB4103718 = "http://download.windowsupdate.com/d/msdownload/update/software/secu/2018/05/windows6.1-kb4103718-x64_c051268978faef39e21863a95ea2452ecbc0936d.msu";
-               KB3125574 = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2016/05/windows6.1-kb3125574-v4-x64_2dafb1d203c8964239af3048b5dd4b1264cd93b9.msu"
+        KB3125574        = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2016/05/windows6.1-kb3125574-v4-x64_2dafb1d203c8964239af3048b5dd4b1264cd93b9.msu"
     }
 
     
@@ -720,7 +880,7 @@ Function Install-Windows2016 {
 
     if ($global:EDR) {
         #Install MMA Agent
-        downloadAndInstallMMA
+        $restartneeded = downloadAndInstallMMA
     }
 
     if ($restartneeded) {
@@ -781,15 +941,7 @@ Function Install-Windows2019 {
     if ($global:EDR) {
         #Onboard machine
         try {
-            if (Test-Path $global:OnboardingPackage) {
-                Write-Log "Onboarding package detected, proceed with onboarding"
-                Expand-Archive -Path $global:OnboardingPackage -DestinationPath $global:currentpath -Force
-                Start-Process -FilePath ($global:currentpath + "\WindowsDefenderATPLocalOnboardingScript.cmd") -Wait -Verb RunAs
-                Write-Log "Onboarding completed" "SUCCESS"
-            }
-            else {
-                Write-Log "Issue finding the onboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script"
-            }
+            $restartneeded = OnboardingEDR
         }
         catch {
             Write-Log "Error while trying to onboard the machine to MDATP" "ERROR"
@@ -815,6 +967,149 @@ Function Install-Windows2019 {
     }
 }
 
+Function Uninstall-Windows7 {
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = UninstallMMA
+    }
+
+    if ($global:EPP) {
+        $restartneeded = UninstallSCEP
+    }
+
+    if ($restartneeded) {
+        Write-Log "Uninstallation completed. Restart is required" "INFO"
+    }
+}
+
+Function Uninstall-Windows81 {
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = UninstallMMA
+    }
+
+    if ($global:EPP) {
+        $restartneeded = UninstallSCEP
+    }
+
+    if ($restartneeded) {
+        Write-Log "Uninstallation completed. Restart is required" "INFO"
+    }
+}
+
+Function Uninstall-Windows2008R2 {
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = UninstallMMA
+    }
+
+    if ($global:EPP) {
+        $restartneeded = UninstallSCEP
+    }
+
+    if ($restartneeded) {
+        Write-Log "Uninstallation completed. Restart is required" "SUCCESS"
+    }
+}
+
+Function Uninstall-Windows2012R2 {
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = UninstallMMA
+    }
+
+    if ($global:EPP) {
+        $restartneeded = UninstallSCEP
+    }
+
+    if ($restartneeded) {
+        Write-Log "Uninstallation completed. Restart is required" "SUCCESS"
+    }
+}
+
+Function Uninstall-Windows2016 {
+
+    Write-Log "Handle Windows Server 2016 Uninstallation"
+
+    $restartneeded = $false
+
+    if ($global:EDR) {
+        $restartneeded = UninstallMMA
+    }
+
+    if ($global:EPP) {
+        #Uninstalling MDAV Server Feature
+        try {
+
+            # Test if WDAV is already installed and running
+            $WDAVProcess = Get-Process -ProcessName MsMpEng 2> $null
+            if (!($null -eq $WDAVProcess)) {
+                Write-Log "Windows Defender is running"
+                $WDAVFeature = Get-WindowsFeature -Name "Windows-Defender-Features"
+                if ($WDAVFeature.InstallState -eq "Installed") {
+                    Write-Log "Removing Defender Antivirus..."
+                    $WDAVInstall = Uninstall-WindowsFeature -Name "Windows-Defender-Features"
+                    if ($WDAVInstall.RestartNeeded -eq "Yes") { $restartneeded = $true }
+                }
+                else {
+                    Write-Log "WDAV feature is already removed"
+                }
+            }
+            else {
+                Write-Log "Windows Defender is not running"
+            }
+        }
+        catch {
+            Write-Log "Error uninstalling MDAV" "ERROR"
+            Write-Log $_ "ERROR"
+        }
+    }
+
+    if ($restartneeded) {
+        Write-Log "Uninstallation completed. Restart is required" "SUCCESS"
+        <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+        $answer = Read-Host
+        do {
+            switch ($answer) {
+                "y" { $fin = $true; shutdown.exe -r -t 60; Write-Log "Reboot will occurs in one Minute"; break }
+                "n" { $fin = $true; Write-Log "User choose not to reboot now" }
+                Default {
+                    $fin = $false; Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+                    $answer = Read-Host
+                }
+            }
+        } while (!$fin)#>
+    }
+}
+Function Uninstall-Windows2019 {
+    
+    Write-Log "Handle Windows Server 2019 Uninstallation"
+
+    if ($global:EDR) {
+        $restartneeded = OffboardingEDR
+    }
+
+    if ($restartneeded) {
+        Write-Log "Uninstallation completed. Restart is required" "SUCCESS"
+        <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+        $answer = Read-Host
+        do {
+            switch ($answer) {
+                "y" { $fin = $true; shutdown.exe -r -t 60; Write-Log "Reboot will occurs in one Minute"; break }
+                "n" { $fin = $true; Write-Log "User choose not to reboot now" }
+                Default {
+                    $fin = $false; Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+                    $answer = Read-Host
+                }
+            }
+        } while (!$fin)#>
+    }
+}
+
 Function Set-WindowsSecuritySettings {
 
     # This parameter handles the Attack Surface Reduction, Controlled Folder Access and Network Protection settings mode (Audit or Enabled)
@@ -823,13 +1118,13 @@ Function Set-WindowsSecuritySettings {
         [String]$ProtectionMode = "AuditMode"
     )
 
-    if (!($ProtectionMode -eq "AuditMode" -or $ProtectionMode -eq "Enabled")) {
-        Write-Log "Protection Mode parameter for Set-WindowsSecuritySettings function is not AuditMode or Enabled, exiting"
+    if (!($ProtectionMode -eq "AuditMode" -or $ProtectionMode -eq "Enabled" -or $ProtectionMode -eq "Disabled")) {
+        Write-Log "Protection Mode parameter for Set-WindowsSecuritySettings function is not AuditMode, Enabled or Disabled exiting"
         return
     }
 
     $Winver = Get-ComputerInfo
-    Write-Log "Setting up security features (Antivirus, Attack Surface Reduction Rules, Network Protection, Controlled Folder Access)"
+    Write-Log "Setting up security features (Antivirus, Attack Surface Reduction Rules, Network Protection, Controlled Folder Access) in $ProtectionMode" "WARN"
     try {
 
         #Enable real time monitoring
@@ -848,6 +1143,7 @@ Function Set-WindowsSecuritySettings {
         Set-MpPreference -DisableRemovableDriveScanning 0
 
         #Enable potentially unwanted apps
+        Write-Log "INFO" "$ProtectionMode PUA Protection"
         Set-MpPreference -PUAProtection $ProtectionMode
 
         #Enable Email & Archive scan
@@ -879,10 +1175,12 @@ Function Set-WindowsSecuritySettings {
 
         #LOB apps should be whitelisted
         #Enable ransomware protection"
+        Write-Log "INFO" "$ProtectionMode Controlled Folder Access Protection"
         Set-MpPreference -EnableControlledFolderAccess $ProtectionMode
 
         #this is something to be discused with security - same as smartscreen
         #Enable network protection"
+        Write-Log "INFO" "$ProtectionMode Network Protection"
         Set-MpPreference -EnableNetworkProtection $ProtectionMode
 
         #"Increase default protection level"
@@ -902,7 +1200,8 @@ Function Set-WindowsSecuritySettings {
         switch ($Winver.WindowsVersion) {
 
             { $_ -ge "1709" } {
-                #Attack Surface Reduction rules, block mode by default, can be changed to Audit if you don't want to be blocked
+                #Attack Surface Reduction rules, audit mode by default, can be changed to block if you want to enforce settings
+                Write-Log "INFO" "$ProtectionMode ASR Protection"
                 Write-Log 'Block all Office applications from creating child processes' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids D4F940AB-401B-4EFC-AADC-AD5F3C50688A -AttackSurfaceReductionRules_Actions $ProtectionMode
                 Write-Log 'Block executable content from email client and webmail' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550 -AttackSurfaceReductionRules_Actions $ProtectionMode
                 Write-Log 'Block execution of potentially obfuscated scripts' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids 5BEB7EFE-FD9A-4556-801D-275E5FFC04CC -AttackSurfaceReductionRules_Actions $ProtectionMode
@@ -972,7 +1271,15 @@ Export-ModuleMember -Function Install-Windows2008R2
 Export-ModuleMember -Function Install-Windows2012R2
 Export-ModuleMember -Function Install-Windows2016
 Export-ModuleMember -Function Install-Windows2019
-Export-ModuleMember -Function Test-MDATPEICAR
+Export-ModuleMember -Function Uninstall-Windows7
+Export-ModuleMember -Function Uninstall-Windows81
+Export-ModuleMember -Function Uninstall-Windows10
+Export-ModuleMember -Function Uninstall-Windows2008R2
+Export-ModuleMember -Function Uninstall-Windows2012R2
+Export-ModuleMember -Function Uninstall-Windows2016
+Export-ModuleMember -Function Uninstall-Windows2019
 Export-ModuleMember -Function Confirm-MDATPInstallation
 Export-ModuleMember -Function Set-WindowsSecuritySettings
+Export-ModuleMember -Function OnboardingEDR
+Export-ModuleMember -Function OffboardingEDR
 Export-ModuleMember -Function Add-MachineTag
