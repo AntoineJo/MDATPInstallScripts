@@ -884,7 +884,7 @@ Function Install-Windows2016 {
 
     if ($global:EDR) {
         #Install MMA Agent
-        downloadAndInstallMMA
+        $restartneeded = downloadAndInstallMMA
     }
 
     if ($restartneeded) {
