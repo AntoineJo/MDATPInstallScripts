@@ -721,11 +721,7 @@ Function Install-Windows10 {
 Function Uninstall-Windows10 {
     
     Write-Log "Handle Windows 10 Uninstallation"
-
-    if ($global:EPP) {
-        # Test if MDAV is already installed and running
-        $restartneeded = Set-WindowsSecuritySettings -ProtectionMode Disabled
-    }
+    $restartneeded = $false
 
     if ($global:EDR) {
         $restartneeded = OffboardingEDR
@@ -1048,31 +1044,68 @@ Function Uninstall-Windows2012R2 {
 }
 
 Function Uninstall-Windows2016 {
+
+    Write-Log "Handle Windows Server 2016 Uninstallation"
+
     $restartneeded = $false
 
-    Write-Log "UNIMPLEMENTED" "ERROR"
-
     if ($global:EDR) {
-        
+        $restartneeded = UninstallMMA
     }
 
     if ($global:EPP) {
-        
+        #Uninstalling MDAV Server Feature
+        try {
+
+            # Test if WDAV is already installed and running
+            $WDAVProcess = Get-Process -ProcessName MsMpEng 2> $null
+            if (!($null -eq $WDAVProcess)) {
+                Write-Log "Windows Defender is running"
+                $WDAVFeature = Get-WindowsFeature -Name "Windows-Defender-Features"
+                if ($WDAVFeature.InstallState -eq "Installed") {
+                    Write-Log "Removing Defender Antivirus..."
+                    $WDAVInstall = Uninstall-WindowsFeature -Name "Windows-Defender-Features"
+                    if ($WDAVInstall.RestartNeeded -eq "Yes") { $restartneeded = $true }
+                }
+                else {
+                    Write-Log "WDAV feature is already removed"
+                }
+            }
+            else {
+                Write-Log "Windows Defender is not running"
+            }
+        }
+        catch {
+            Write-Log "Error installing or updating MDAV" "ERROR"
+            Write-Log $_ "ERROR"
+        }
+    }
+
+    if ($global:EDR) {
+        #Install MMA Agent
+        downloadAndInstallMMA
     }
 
     if ($restartneeded) {
-        Write-Log "Installation completed. Restart is required" "INFO"
+        Write-Log "Installation completed. Restart is required" "SUCCESS"
+        <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+        $answer = Read-Host
+        do {
+            switch ($answer) {
+                "y" { $fin = $true; shutdown.exe -r -t 60; Write-Log "Reboot will occurs in one Minute"; break }
+                "n" { $fin = $true; Write-Log "User choose not to reboot now" }
+                Default {
+                    $fin = $false; Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
+                    $answer = Read-Host
+                }
+            }
+        } while (!$fin)#>
     }
 }
 
 Function Uninstall-Windows2019 {
     
     Write-Log "Handle Windows Server 2019 Uninstallation"
-
-    if ($global:EPP) {
-        # Test if MDAV is already installed and running
-        $restartneeded = Set-WindowsSecuritySettings -ProtectionMode Disabled
-    }
 
     if ($global:EDR) {
         $restartneeded = OffboardingEDR
