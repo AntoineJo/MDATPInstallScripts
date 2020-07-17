@@ -1081,13 +1081,8 @@ Function Uninstall-Windows2016 {
         }
     }
 
-    if ($global:EDR) {
-        #Install MMA Agent
-        downloadAndInstallMMA
-    }
-
     if ($restartneeded) {
-        Write-Log "Installation completed. Restart is required" "SUCCESS"
+        Write-Log "Uninstallation completed. Restart is required" "SUCCESS"
         <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
         $answer = Read-Host
         do {
@@ -1102,7 +1097,6 @@ Function Uninstall-Windows2016 {
         } while (!$fin)#>
     }
 }
-
 Function Uninstall-Windows2019 {
     
     Write-Log "Handle Windows Server 2019 Uninstallation"
