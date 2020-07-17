@@ -226,7 +226,7 @@ if (!$global:downloadOnly) {
             
             if(!$global:uninstall) {
                 Install-Windows10
-                if ($global:EPP) {
+                if ($global:EPP -or $global:ASRValue) {
                     Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
                 }
             }
@@ -259,7 +259,7 @@ if (!$global:downloadOnly) {
 
                 if(!$global:uninstall) {
                     Install-Windows2019
-                    if ($global:EPP) {
+                    if ($global:EPP -or $global:ASRValue) {
                         Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
                     }
                 }

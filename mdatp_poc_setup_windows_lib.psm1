@@ -1142,7 +1142,7 @@ Function Set-WindowsSecuritySettings {
     }
 
     $Winver = Get-ComputerInfo
-    Write-Log "Setting up security features (Antivirus, Attack Surface Reduction Rules, Network Protection, Controlled Folder Access)"
+    Write-Log "Setting up security features (Antivirus, Attack Surface Reduction Rules, Network Protection, Controlled Folder Access) in $ProtectionMode" "WARN"
     try {
 
         #Enable real time monitoring
