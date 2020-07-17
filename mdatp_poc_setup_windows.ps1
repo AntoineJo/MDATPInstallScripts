@@ -77,6 +77,7 @@ else {
     $global:EDR = $false
 }
 
+# Logic to handle uninstallation with the same global variables
 if($uninstallEDR -or $uninstallEPP){
     $global:uninstall = $true
     if($uninstallEPP){
@@ -225,13 +226,15 @@ if (!$global:downloadOnly) {
             
             if(!$global:uninstall) {
                 Install-Windows10
+                if ($global:EPP) {
+                    Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
+                }
             }
             else {
                 Uninstall-Windows10
-            }
-
-            if ($global:EPP) {
-                Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
+                if ($global:EPP) {
+                    Set-WindowsSecuritySettings -ProtectionMode Disabled # can be changed to "Enabled" for ASR, CFA, NP
+                }
             }
 
         }
@@ -256,13 +259,15 @@ if (!$global:downloadOnly) {
 
                 if(!$global:uninstall) {
                     Install-Windows2019
+                    if ($global:EPP) {
+                        Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
+                    }
                 }
                 else {
                     Uninstall-Windows2019
-                }
-                
-                if ($global:EPP) {
-                    Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
+                    if ($global:EPP) {
+                        Set-WindowsSecuritySettings -ProtectionMode Disabled # can be changed to "Enabled" for ASR, CFA, NP
+                    }
                 }
 
             }   
