@@ -82,8 +82,10 @@ Function Confirm-MDATPInstallation {
                 if (Test-Path "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab") {
                     Remove-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab"
                 }
-                Start-Process -FilePath ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe') -ArgumentList ("-GetFiles") -Wait -Verb runas
-                Copy-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab" ($global:resultsDir + '\MpSupportFiles.cab') -Force
+                if (Test-path ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe')) {
+                    Start-Process -FilePath ($Env:ProgramFiles + '\Windows Defender\MpCmdRun.exe') -ArgumentList ("-GetFiles") -Wait -Verb runas
+                    Copy-Item "C:\ProgramData\Microsoft\Windows Defender\Support\MpSupportFiles.cab" ($global:resultsDir + '\MpSupportFiles.cab') -Force
+                }
             }
         }
         catch {
@@ -238,7 +240,7 @@ Function downloadAndInstallSCEP {
     }
 }
 
-Function Uninstall($uninstallKeyPathValue,$defaultUninstallcmdLine){
+Function Uninstall($uninstallKeyPathValue, $defaultUninstallcmdLine) {
 
     Write-Log "Uninstalling function KeyPathValue $uninstallKeyPathValue" "DEBUG"
     Write-Log "Uninstalling function KeyPathValue $defaultUninstallcmdLine" "DEBUG"
@@ -248,7 +250,7 @@ Function Uninstall($uninstallKeyPathValue,$defaultUninstallcmdLine){
     $cmdline = ""
     $needrestart = $false
 
-    if(!(Test-Path $uninstallKeyPath)) {
+    if (!(Test-Path $uninstallKeyPath)) {
         #if uninstall key is not found
         Write-Log "Could not find uninstall key under $uninstallKeyPath" "WARN"
         Write-Log "Test standard uninstall cmd line $defaultUninstallcmdLine" "WARN"
@@ -258,7 +260,7 @@ Function Uninstall($uninstallKeyPathValue,$defaultUninstallcmdLine){
         
         $uninstallKey = Get-ItemProperty $uninstallKeyPath -Name $uninstallProperty 2> $null
         
-        if($null -eq $uninstallKey) {
+        if ($null -eq $uninstallKey) {
             #if uninstall value is not found
             Write-Log "Could not find uninstall key/value under $uninstallKeyPath!$uninstallProperty" "WARN"
             Write-Log "Test standard uninstall cmd line $defaultUninstallcmdLine" "WARN"
@@ -270,16 +272,16 @@ Function Uninstall($uninstallKeyPathValue,$defaultUninstallcmdLine){
     }
 
     $cmdline = $cmdline.split("/")
-    Write-Log ("Trying to locate uninstall binary "+$cmdline[0]) "INFO"
-    $cmdline[0] = $cmdline[0].Replace('"','')
+    Write-Log ("Trying to locate uninstall binary " + $cmdline[0]) "INFO"
+    $cmdline[0] = $cmdline[0].Replace('"', '')
 
-    if((Test-Path $cmdline[0]) -or ($cmdline[0].ToLower().trim() -eq "msiexec.exe")){
+    if ((Test-Path $cmdline[0]) -or ($cmdline[0].ToLower().trim() -eq "msiexec.exe")) {
         Write-Log "Uninstalling" "INFO"
-        if($cmdline[0].ToLower().trim() -eq "msiexec.exe"){
-            Start-Process -FilePath $cmdline[0] -ArgumentList("/"+$cmdline[1],"/quiet","/norestart")
+        if ($cmdline[0].ToLower().trim() -eq "msiexec.exe") {
+            Start-Process -FilePath $cmdline[0] -ArgumentList("/" + $cmdline[1], "/quiet", "/norestart")
         }
         else {
-            Start-Process -FilePath $cmdline[0] -ArgumentList("/"+$cmdline[1],"/s")
+            Start-Process -FilePath $cmdline[0] -ArgumentList("/" + $cmdline[1], "/s")
         }
         $needrestart = $true
     }
@@ -297,7 +299,7 @@ Function UninstallSCEP {
 
     #check if SCEP is running, if no, exit
     $scepProcess = get-process -ProcessName MsMpEng 2> $null
-    if(!$scepProcess) {
+    if (!$scepProcess) {
         Write-Log "SCEP is not running, exiting" "INFO"
         return $needrestart
     }
@@ -426,12 +428,12 @@ Function downloadAndInstallMMA {
     return $restartneeded
 }
 
-Function UninstallMMA{
+Function UninstallMMA {
     Write-Log "Check if MMA Agent is already installed"
     $isInstalled = $false
     $isInstalled = (Test-Path -Path "HKLM:\Software\Classes\AgentConfigManager.MgmtSvcCfg")
 
-    if(!$isInstalled) {
+    if (!$isInstalled) {
         Write-Log "MMA Agent is not installed, exiting" "INFO"
         return $restartneeded
     }
@@ -443,17 +445,17 @@ Function UninstallMMA{
     Write-Log "MMA Agent is already installed, so we remove the MDATP workspace to the existing MMA agent or uninstall it"
     $AgentCfg = New-Object -ComObject AgentConfigManager.MgmtSvcCfg
     $workspaces = $agentcfg.GetCloudWorkspaces()      
-    if($workspaces.Length -gt 1){
+    if ($workspaces.Length -gt 1) {
         Write-Log "Removing MDATP Workspace but keeping MMA agent for other Workspaces"
         $AgentCfg.RemoveCloudWorkspace($global:WorkspaceID)
         $AgentCfg.ReloadConfiguration()
     }
     else {
-        if($AgentCfg.GetCloudWorkspaces().Item(0).workspaceId -eq $global:WorkspaceID){
+        if ($AgentCfg.GetCloudWorkspaces().Item(0).workspaceId -eq $global:WorkspaceID) {
             $restartneeded = Uninstall "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{D035C02C-D356-43F2-B8B7-4A1CE5BD5AE0}!UninstallString" "MsiExec.exe /I{D035C02C-D356-43F2-B8B7-4A1CE5BD5AE0}" 
         }
         else {
-            Write-Log ("The workspace ID "+$AgentCfg.GetCloudWorkspaces().Item(0).workspaceId+" is not the provided one. Exiting without doing anything on MMA agent.") "WARN"
+            Write-Log ("The workspace ID " + $AgentCfg.GetCloudWorkspaces().Item(0).workspaceId + " is not the provided one. Exiting without doing anything on MMA agent.") "WARN"
         }
     }
     
@@ -523,20 +525,20 @@ Function OffboardingEDR {
     #Offboard machine
     try {
 
-        if($null -eq $global:OffboardingPackageName) {
+        if ($null -eq $global:OffboardingPackageName) {
             Write-Log "Offboarding Package is missing" "ERROR"
         } 
         else {
-           $OffboardingFullPath = $global:currentpath + '\' + $global:OffboardingPackageName
+            $OffboardingFullPath = $global:currentpath + '\' + $global:OffboardingPackageName
         }
         
         if (Test-Path $OffboardingFullPath) {
             Write-Log "Offboarding package detected, proceed with offboarding"
             Expand-Archive -Path $OffboardingFullPath -DestinationPath $ENV:TEMP -Force
             #Edit cmd file to transform it to automated
-            $OffboardingCMD = (Get-ChildItem -Recurse -Force $ENV:TEMP | Where-Object {!$_.PSIsContainer -and  ($_.Name -like "WindowsDefenderATPOffboardingScript*.cmd") }).Name
-            $file = Get-Content ($ENV:TEMP+"\"+$OffboardingCMD)
-            $file.replace("pause","") > ($ENV:TEMP + "\WindowsDefenderATPLocalOffboardingScript_silent.cmd")
+            $OffboardingCMD = (Get-ChildItem -Recurse -Force $ENV:TEMP | Where-Object { !$_.PSIsContainer -and ($_.Name -like "WindowsDefenderATPOffboardingScript*.cmd") }).Name
+            $file = Get-Content ($ENV:TEMP + "\" + $OffboardingCMD)
+            $file.replace("pause", "") > ($ENV:TEMP + "\WindowsDefenderATPLocalOffboardingScript_silent.cmd")
             Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOffboardingScript_silent.cmd") -Wait -Verb RunAs
             Write-Log "Offboarding completed" "SUCCESS"
         }
@@ -558,9 +560,9 @@ Function OnboardingEDR {
             Write-Log "Onboarding package detected, proceed with onboarding"
             Expand-Archive -Path $global:OnboardingPackage -DestinationPath $ENV:TEMP -Force
             #Edit cmd file to transform it to automated
-            $file = get-content ($ENV:TEMP+"\WindowsDefenderATPLocalOnboardingScript.cmd")
+            $file = get-content ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript.cmd")
             $file[1] = "GOTO SCRIPT_START"
-            $file.replace("pause","") > ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd")
+            $file.replace("pause", "") > ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd")
 
             Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd") -Wait -Verb RunAs
             Write-Log "Onboarding completed" "SUCCESS"
@@ -753,7 +755,7 @@ Function Install-Windows2008R2 {
     #KB4074598 Feb2018 monthly rollup replaced by full update of Windows 2008 R2, for that we need to install KB410378 (replacement for required KB4074598) and KB3125574 (replacement for required KB3080149)
 
     $kburl = @{KB4103718 = "http://download.windowsupdate.com/d/msdownload/update/software/secu/2018/05/windows6.1-kb4103718-x64_c051268978faef39e21863a95ea2452ecbc0936d.msu";
-               KB3125574 = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2016/05/windows6.1-kb3125574-v4-x64_2dafb1d203c8964239af3048b5dd4b1264cd93b9.msu"
+        KB3125574        = "http://download.windowsupdate.com/d/msdownload/update/software/updt/2016/05/windows6.1-kb3125574-v4-x64_2dafb1d203c8964239af3048b5dd4b1264cd93b9.msu"
     }
 
     
