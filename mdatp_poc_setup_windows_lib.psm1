@@ -991,7 +991,7 @@ Function Uninstall-Windows7 {
     }
 
     if ($restartneeded) {
-        Write-Log "Installation completed. Restart is required" "INFO"
+        Write-Log "Uninstallation completed. Restart is required" "INFO"
     }
 }
 
@@ -1007,7 +1007,7 @@ Function Uninstall-Windows81 {
     }
 
     if ($restartneeded) {
-        Write-Log "Installation completed. Restart is required" "INFO"
+        Write-Log "Uninstallation completed. Restart is required" "INFO"
     }
 }
 
@@ -1023,7 +1023,7 @@ Function Uninstall-Windows2008R2 {
     }
 
     if ($restartneeded) {
-        Write-Log "Installation completed. Restart is required" "INFO"
+        Write-Log "Uninstallation completed. Restart is required" "INFO"
     }
 }
 
@@ -1039,7 +1039,7 @@ Function Uninstall-Windows2012R2 {
     }
 
     if ($restartneeded) {
-        Write-Log "Installation completed. Restart is required" "INFO"
+        Write-Log "Uninstallation completed. Restart is required" "INFO"
     }
 }
 
@@ -1076,7 +1076,7 @@ Function Uninstall-Windows2016 {
             }
         }
         catch {
-            Write-Log "Error installing or updating MDAV" "ERROR"
+            Write-Log "Error uninstalling MDAV" "ERROR"
             Write-Log $_ "ERROR"
         }
     }
