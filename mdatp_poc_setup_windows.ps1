@@ -1,6 +1,7 @@
 # DISCLAIMER
 # Script provided as-is without any garantee it will work and is not supported by Microsoft
 #
+
 Param(
     
     [Parameter(Mandatory = $false)]
@@ -48,7 +49,6 @@ Param(
 )
 
 
-
 ################################
 #DO NOT CHANGE ANYTHING AFTER THAT POINT
 # Initialize global variables
@@ -91,9 +91,7 @@ else {
 }
 
 $global:downloadOnly = $DownloadContent
-
 $global:OSName = $OS
-
 $global:currentpath = split-path $SCRIPT:MyInvocation.MyCommand.Path -parent
 
 if ($global:downloadOnly) {
@@ -114,7 +112,6 @@ $global:outDir = $ENV:TEMP + '\MDATP\'
 $global:resultsDir = $global:outDir
 $global:logfile = $ENV:TEMP + '\MDATP\install.log'
 
-
 $global:logfile = $global:resultsDir + '\install.log'
 if (Test-Path $global:logfile) {
     $rand = Get-Random
@@ -132,7 +129,6 @@ if (!$global:downloadOnly) {
     # Get Windows OS Information
     $OSinfo = get-wmiobject win32_operatingsystem
     Write-Log ("OS : " + $OSinfo.Caption + " | Build number: " + $OSinfo.Version + " | SKU: " + $OSinfo.OperatingSystemSKU)
-
 
     if ($OSinfo.Version -like "6.1.7601*") {
         #Win7/Server 2008 R2
