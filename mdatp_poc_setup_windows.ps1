@@ -53,8 +53,7 @@ Param(
 #DO NOT CHANGE ANYTHING AFTER THAT POINT
 # Initialize global variables
 
-#region GlobalVar
-#
+
 # Let me explain a bit the script logic and how we use global:variable here
 #
 #   WorkspaceID & WorkspaceKey are took from the MDATP Onboarding page and are used for Onboarding and Offboarding Win7/8.1/2008 R2/2012 R2/2016 into MDATP
@@ -102,6 +101,7 @@ Param(
 #
 #################################
 
+#region GlobalVar
 $global:WorkspaceID = $WorkspaceID
 $global:WorkspaceKey = $WorkspaceKey
 
