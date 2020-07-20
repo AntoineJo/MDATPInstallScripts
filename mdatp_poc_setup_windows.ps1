@@ -52,6 +52,56 @@ Param(
 ################################
 #DO NOT CHANGE ANYTHING AFTER THAT POINT
 # Initialize global variables
+
+#region GlobalVar
+#
+# Let me explain a bit the script logic and how we use global:variable here
+#
+#   WorkspaceID & WorkspaceKey are took from the MDATP Onboarding page and are used for Onboarding and Offboarding Win7/8.1/2008 R2/2012 R2/2016 into MDATP
+#
+#   ASRMode (default is AuditMode) is the mode for Windows 10/2019 ASR + NetworkProtection + CFA
+#
+#   MachineTag is a TAG to add to the computer for MDATP
+#
+#   DownloadOnly is here to allow download of required binairies in order to package and deploy the script to multiple computers
+#
+#   OSName is the name of the OS to handle, it can be OS to download binairies for, or the OS we are running on
+#
+#   CurrentPath is the current script execution path
+#
+#   DownloadLocation is the path to download binaries to, if we are in download only this is the current path, if we are installing, this is the %TEMP% folder
+#
+#   OutDir is the directory for output & logs => $ENV:TEMP + '\MDATP\'
+#
+#   EPP, EDR & uninstall are flags, please read this matrix to understand their meaning (that easy :)
+#
+#   |----------------------------------------------------------|
+#   | meaning                    |  EPP  |  EDR  |  Uninstall  |
+#   | install EPP only           |   x   |       |             |     
+#   | install EDR only           |       |   x   |             |     
+#   | install both EPP & EDR     |   x   |   x   |             |     
+#   | uninstall EPP              |   x   |       |     x       |     
+#   | uninstall EDR              |       |   x   |     x       |     
+#   | uninstall EPP & EDR        |   x   |   x   |     x       |     
+#   |----------------------------------------------------------|
+#
+#   Script logic
+#   -------------
+#   
+#   if install or uninstall mode
+#       depending on the OS version and on the OS SKU (client/server)
+#           if not uninstall order
+#               call install function
+#           else 
+#               call unistall function
+#           
+#       add MDATP TAG
+#       Confirm EDR installation
+#   else
+#       download binaries for required OSes
+#
+#################################
+
 $global:WorkspaceID = $WorkspaceID
 $global:WorkspaceKey = $WorkspaceKey
 
@@ -118,6 +168,9 @@ if (Test-Path $global:logfile) {
     $rand = Get-Random
     $global:logfile = $global:resultsDir + "\install-$rand.log"
 }
+
+#endregion GlobalVar
+
 Write-Debug ("log file is " + $global:logfile)
 
 #Import Module
@@ -126,6 +179,8 @@ if ((Get-Module -Name "mdatp_poc_setup_windows_lib")) {
 }
 Import-Module ($global:currentpath + '\mdatp_poc_setup_windows_lib.psm1')
 
+
+#If we are not in download only mode, then get the info of the OS we are running on and proceed to installation or uninstallation
 if (!$global:downloadOnly) {
     # Get Windows OS Information
     $OSinfo = get-wmiobject win32_operatingsystem
