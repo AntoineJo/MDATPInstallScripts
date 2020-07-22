@@ -33,12 +33,11 @@ This script installs and configures:
 
 With this script you can install with automatic download, or download required binaires to prepare for packaging.
 
-Then when installing it will, depending on paramters 
+Then when installing it will, depending on parameters 
 - Detect the operating system version
 - Install and setup all Defender ATP components
-- Download an EICAR file to initiate a test alert
 - (optional) Add a machine tag
-- (roadmap) Troubleshoot connectivity problems
+- Troubleshoot connectivity problems
 
 WARNING:
 This script does not check if there is another antivirus installed, you should uninstall your existing Antimalware solution before installing/enabling SCEP/Defender Antivirus
