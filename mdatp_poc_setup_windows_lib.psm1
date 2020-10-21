@@ -567,6 +567,12 @@ Function OnboardingEDR {
             Start-Process -FilePath ($global:currentpath + "\WindowsDefenderATPLocalOnboardingScript.cmd") -Wait -Verb RunAs
             Write-Log "Onboarding completed" "SUCCESS"
         }
+        elseif (Test-Path ($global:currentpath + '\WindowsDefenderATPOnboardingScript.cmd')) {
+            Write-Log "Silent onboarding script detected, proceed with onboarding"
+            
+            Start-Process -FilePath ($global:currentpath + "\WindowsDefenderATPOnboardingScript.cmd") -Wait -Verb RunAs
+            Write-Log "Onboarding completed" "SUCCESS"
+        }
         else {
             Write-Log "Issue finding the onboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script" "ERROR"
         }
