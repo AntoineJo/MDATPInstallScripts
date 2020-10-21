@@ -186,6 +186,10 @@ if (!$global:downloadOnly) {
     $OSinfo = get-wmiobject win32_operatingsystem
     Write-Log ("OS : " + $OSinfo.Caption + " | Build number: " + $OSinfo.Version + " | SKU: " + $OSinfo.OperatingSystemSKU)
 
+    Write-Log "Ensure there is no registry key that prevent MDAV to run" "INFO"
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiSpyware" -Value 0
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiVirus" -Value 0
+
     if ($OSinfo.Version -like "6.1.7601*") {
         #Win7/Server 2008 R2
 
@@ -343,9 +347,7 @@ if (!$global:downloadOnly) {
     if ($global:EDR) {
         Add-MachineTag
     }
-    if(!$global:uninstall){
-        Confirm-MDATPInstallation 
-    }
+
 }
 else {
     
@@ -378,5 +380,5 @@ else {
             Write-Error "Unsupported OS selected"
         }
     }
-    Confirm-MDATPInstallation
+    
 }
