@@ -153,7 +153,7 @@ else {
 }
 
 $global:OnboardingPackage = $global:currentpath + '\WindowsDefenderATPOnboardingPackage.zip'
-$global:OffboardingPackageName = (Get-ChildItem -Recurse -Force $global:currentpath | Where-Object {!$_.PSIsContainer -and  ($_.Name -like "*WindowsDefenderATPOffboardingPackage*") }).Name
+$global:OffboardingPackageName = ((Get-ChildItem -Recurse -Force $global:currentpath 2> $null)| Where-Object {!$_.PSIsContainer -and  ($_.Name -like "*WindowsDefenderATPOffboardingPackage*") }).Name
 
 if (!(Test-Path ($ENV:TEMP + '\MDATP\'))) {
     New-Item ($ENV:TEMP + '\MDATP') -ItemType Directory | Out-Null
@@ -187,8 +187,8 @@ if (!$global:downloadOnly) {
     Write-Log ("OS : " + $OSinfo.Caption + " | Build number: " + $OSinfo.Version + " | SKU: " + $OSinfo.OperatingSystemSKU)
 
     Write-Log "Ensure there is no registry key that prevent MDAV to run" "INFO"
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiSpyware" -Value 0
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiVirus" -Value 0
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiSpyware" -Value 0 2> $null
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiVirus" -Value 0 2> $null
 
     if ($OSinfo.Version -like "6.1.7601*") {
         #Win7/Server 2008 R2
