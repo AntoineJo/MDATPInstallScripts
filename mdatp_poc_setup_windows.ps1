@@ -33,7 +33,7 @@ Param(
     $MDATPTag,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("AuditMode", "EnforcedMode","Disabled")]
+    [ValidateSet("AuditMode", "EnforcedMode", "Disabled")]
     [String]
     $ASRMode = "AuditMode",
 
@@ -128,12 +128,12 @@ else {
 }
 
 # Logic to handle uninstallation with the same global variables
-if($uninstallEDR -or $uninstallEPP){
+if ($uninstallEDR -or $uninstallEPP) {
     $global:uninstall = $true
-    if($uninstallEPP){
+    if ($uninstallEPP) {
         $global:EPP = $true
     }
-    if($uninstallEDR){
+    if ($uninstallEDR) {
         $global:EDR = $true
     }
 }
@@ -153,7 +153,7 @@ else {
 }
 
 $global:OnboardingPackage = $global:currentpath + '\WindowsDefenderATPOnboardingPackage.zip'
-$global:OffboardingPackageName = ((Get-ChildItem -Recurse -Force $global:currentpath 2> $null)| Where-Object {!$_.PSIsContainer -and  ($_.Name -like "*WindowsDefenderATPOffboardingPackage*") }).Name
+$global:OffboardingPackageName = ((Get-ChildItem -Recurse -Force $global:currentpath 2> $null) | Where-Object { !$_.PSIsContainer -and ($_.Name -like "*WindowsDefenderATPOffboardingPackage*") }).Name
 
 if (!(Test-Path ($ENV:TEMP + '\MDATP\'))) {
     New-Item ($ENV:TEMP + '\MDATP') -ItemType Directory | Out-Null
@@ -193,6 +193,7 @@ if (!$global:downloadOnly) {
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 0 2> $null
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiVirus" -Value 0 2> $null
 
+
     if ($OSinfo.Version -like "6.1.7601*") {
         #Win7/Server 2008 R2
 
@@ -206,7 +207,7 @@ if (!$global:downloadOnly) {
             }
             $global:OSName = "Windows7x64"
 
-            if(!$global:uninstall) {
+            if (!$global:uninstall) {
                 Install-Windows7
             }
             else {
@@ -219,7 +220,14 @@ if (!$global:downloadOnly) {
             Write-Log "Windows Server 2008 R2"
             $global:OSName = "Windows2008R2"
 
-            if(!$global:uninstall) {
+            if (!$global:uninstall) {
+                #Check presence of Trend
+                $trend = $null
+                $trend = get-process -name ntrtscan 2> $null
+                if ($trend) {
+                    #if trend is present then do not install MDAV
+                    $global:EPP = $false
+                }
                 Install-Windows2008R2
             }
             else {
@@ -246,7 +254,7 @@ if (!$global:downloadOnly) {
             }
             $global:OSName = "Windows8.1x64"
             
-            if(!$global:uninstall) {
+            if (!$global:uninstall) {
                 Install-Windows81
             }
             else {
@@ -264,7 +272,14 @@ if (!$global:downloadOnly) {
             }
             $global:OSName = "Windows2012R2"
             
-            if(!$global:uninstall) {
+            if (!$global:uninstall) {
+                #Check presence of Trend
+                $trend = $null
+                $trend = get-process -name ntrtscan 2> $null
+                if ($trend) {
+                    #if trend is present then do not install MDAV
+                    $global:EPP = $false
+                }
                 Install-Windows2012R2
             }
             else {
@@ -286,7 +301,7 @@ if (!$global:downloadOnly) {
             Write-Log "Windows 10 Pro, Pro N, Enterprise or Enterprise N"
             $global:OSName = "Windows10x64"
             
-            if(!$global:uninstall) {
+            if (!$global:uninstall) {
                 Install-Windows10
                 if ($global:EPP -or $global:ASRValue) {
                     Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
@@ -306,7 +321,16 @@ if (!$global:downloadOnly) {
                 Write-Log "Windows Server 2016"
                 $global:OSName = "Windows2016"
                 
-                if(!$global:uninstall) {
+                if (!$global:uninstall) {
+
+                    #Check presence of Trend
+                    $trend = $null
+                    $trend = get-process -name ntrtscan 2> $null
+                    if ($trend) {
+                        #if trend is present then do not install MDAV
+                        $global:EPP = $false
+                    }
+
                     Install-Windows2016
                 }
                 else {
@@ -319,8 +343,19 @@ if (!$global:downloadOnly) {
                 Write-Log "Windows Server 2019"
                 $global:OSName = "Windows2019"
 
-                if(!$global:uninstall) {
+                if (!$global:uninstall) {
                     Install-Windows2019
+                    
+                    #Check presence of Trend
+                    $trend = $null
+                    $trend = get-process -name ntrtscan 2> $null
+                    if ($trend) {
+                        #put MDAV in passive mode https://docs.microsoft.com/en-us/windows/security/threat-protection/microsoft-defender-antivirus/microsoft-defender-antivirus-compatibility 
+                        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection" -Name "ForceDefenderPassiveMode" -Value 1 2> $null
+                    }
+                    
+                    #Start the service
+                    Start-Service -Name WinDefend
                     if ($global:EPP -or $global:ASRValue) {
                         Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
                     }
