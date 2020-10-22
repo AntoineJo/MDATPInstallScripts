@@ -397,7 +397,7 @@ if (!$global:downloadOnly) {
     if($global:EPP -and $global:OfflineUpdate)
     {
         Write-Log "Update offline"
-        Update-offline
+        Update-offline | Out-Null
     }
 
     if ($global:EDR) {
