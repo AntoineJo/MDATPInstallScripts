@@ -937,11 +937,13 @@ Function Install-Windows2019 {
             }
             else {
                 Write-Log "Windows Defender is already installed and running"
-                Write-Log "Checking security intelligence updates settings"
-                $WUSetting = (Get-ItemProperty -Path HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU -Name AUOptions).AUOptions
-                if (($WUSetting -eq "3") -or ($WUSetting -eq "4")) {
-                    Write-Log "Launching security intelligence updates"
-                    Update-MPSignature -UpdateSource MicrosoftUpdateServer
+                if(!$global:OfflineUpdate){
+                    Write-Log "Checking security intelligence updates settings"
+                    $WUSetting = (Get-ItemProperty -Path HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU -Name AUOptions).AUOptions
+                    if (($WUSetting -eq "3") -or ($WUSetting -eq "4")) {
+                        Write-Log "Launching security intelligence updates"
+                        Update-MPSignature -UpdateSource MicrosoftUpdateServer
+                    }
                 }
             }
         }
@@ -1275,6 +1277,69 @@ Function Add-MachineTag {
     
 }
 
+Function Update-offline {
+    $offlineupdate = "https://go.microsoft.com/fwlink/?LinkID=121721&arch=x64"
+    $nisupdate = "https://go.microsoft.com/fwlink/?LinkID=187316&arch=x64&nri=true"
+
+    try {
+
+        if ($needinstall -or $global:downloadOnly) {
+            #offline update
+            if (!(Test-Path ($global:currentpath + '\mpam-fe.exe'))) {
+                Write-Log "Download Offline update for defender"
+                (New-Object Net.WebClient).DownloadFile($offlineupdate, ($global:downloadLocation + '\mpam-fe.exe'))
+            }
+            else {
+                if (!$global:downloadOnly) {
+                    Copy-Item ($global:currentpath + '\mpam-fe.exe') ($global:downloadLocation + '\mpam-fe.exe')  -Force
+                }
+            }
+
+            if (!$global:downloadOnly) {
+                if (Test-Path ($global:downloadLocation + '\mpam-fe.exe')) {
+                    Write-Log "download of Offline updates succeded"
+                    Write-Log "Installing Offline updates"
+                    Start-Process -FilePath ($global:downloadLocation + '\mpam-fe.exe') -Wait -Verb runas
+                    Write-Log "Offline updates install result $LastExitCode"
+                    $restartneeded = $false
+                }
+                else {
+                    Write-Log "Error downloading Offline update"
+                }
+            }
+
+            #offline nis
+            if (!(Test-Path ($global:currentpath + '\nis_full.exe'))) {
+                Write-Log "Download Offline update for NIS"
+                (New-Object Net.WebClient).DownloadFile($nisupdate, ($global:downloadLocation + '\nis_full.exe'))
+            }
+            else {
+                if (!$global:downloadOnly) {
+                    Copy-Item ($global:currentpath + '\nis_full.exe') ($global:downloadLocation + '\nis_full.exe')  -Force
+                }
+            }
+
+            if (!$global:downloadOnly) {
+                if (Test-Path ($global:downloadLocation + '\nis_full.exe')) {
+                    Write-Log "download of Offline updates for NIS succeded"
+                    Write-Log "Installing Offline updates for NIS "
+                    Start-Process -FilePath ($global:downloadLocation + '\nis_full.exe') -Wait -Verb runas
+                    Write-Log "Offline updates for NIS install result $LastExitCode"
+                    $restartneeded = $false
+                }
+                else {
+                    Write-Log "Error downloading Offline update for NIS "
+                }
+            }
+        }
+    }
+    catch {
+        Write-Log "Error downloading or installing Offline update/NIS" "ERROR"
+        Write-Log $_ "ERROR"
+    }
+}
+
+
 Export-ModuleMember -Function Write-Log
 Export-ModuleMember -Function Install-Windows7
 Export-ModuleMember -Function Install-Windows81
@@ -1295,3 +1360,4 @@ Export-ModuleMember -Function Set-WindowsSecuritySettings
 Export-ModuleMember -Function OnboardingEDR
 Export-ModuleMember -Function OffboardingEDR
 Export-ModuleMember -Function Add-MachineTag
+Export-ModuleMember -Function Update-offline

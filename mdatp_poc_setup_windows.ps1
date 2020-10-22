@@ -39,6 +39,10 @@ Param(
 
     [Parameter(Mandatory = $false)]
     [switch]
+    $OfflineUpdate,
+
+    [Parameter(Mandatory = $false)]
+    [switch]
     $DownloadContent,
 
     [Parameter(Mandatory = $false)]
@@ -125,6 +129,14 @@ if ($installEDR) {
 } 
 else {
     $global:EDR = $false
+}
+
+#manage offline intelligence security update
+if($OfflineUpdate){
+    $global:OfflineUpdate = $true
+}
+else {
+    $global:OfflineUpdate = $false
 }
 
 # Logic to handle uninstallation with the same global variables
@@ -380,6 +392,11 @@ if (!$global:downloadOnly) {
         Write-Log ("Unsupported OS" + $OSinfo.Version + " " + $OSinfo.OperatingSystemSKU + " (" + $OSinfo.Caption + ")") "FATAL"
         Write-Error ("Unsupported OS " + $OSinfo.Version + " " + $OSinfo.OperatingSystemSKU + " (" + $OSinfo.Caption + ")")
         Exit
+    }
+
+    if(($global:EPP -and $global:OfflineUpdate) -or $global:downloadOnly)
+    {
+        Update-offline
     }
 
     if ($global:EDR) {
