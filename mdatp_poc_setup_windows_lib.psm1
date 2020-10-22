@@ -925,10 +925,10 @@ Function Install-Windows2019 {
             $WDAVProcess = Get-Process -ProcessName MsMpEng 2> $null
             if ($null -eq $WDAVProcess) {
                 Write-Log "Windows Defender is not running, Checking WDAV feature status"
-                $WDAVFeature = Get-WindowsFeature -Name "Windows-Defender-Features"
+                
                 if ($WDAVFeature.InstallState -ne "Installed") {
                     Write-Log "WDAV Feature is not installed, Installing now..."
-                    $WDAVInstall = Install-WindowsFeature -Name "Windows-Defender-Features"
+                    
                     if ($WDAVInstall.RestartNeeded -eq "Yes") { $restartneeded = $true }
                 }
                 else {
