@@ -867,10 +867,19 @@ Function Install-Windows2016 {
                 if ($WDAVFeature.InstallState -ne "Installed") {
                     Write-Log "WDAV Feature is not installed, Installing now..."
                     $WDAVInstall = Install-WindowsFeature -Name "Windows-Defender-Features"
-                    if ($WDAVInstall.RestartNeeded -eq "Yes") { $restartneeded = $true }
+                    if ($WDAVInstall.RestartNeeded -eq "Yes") { 
+                        $restartneeded = $true 
+                        Write-Log "Restart Needed" "WARN"
+                    }
                 }
                 else {
-                    Write-Log "WDAV feature is installed, check the event viewer to understand why WDAV is not running"
+                    Write-Log "WDAV Feature is installed, but service is not running. Uninstalling feature"
+                    $WDAVInstall = Uninstall-WindowsFeature -Name "Windows-Defender-Features"
+                    if ($WDAVInstall.RestartNeeded -eq "Yes") { 
+                        $restartneeded = $true 
+                        Write-Log "Restart Needed" "WARN"
+                    }
+                    
                 }
             }
             else {
@@ -887,6 +896,7 @@ Function Install-Windows2016 {
         catch {
             Write-Log "Error installing or updating MDAV" "ERROR"
             Write-Log $_ "ERROR"
+            return 1603
         }
     }
 
@@ -897,6 +907,8 @@ Function Install-Windows2016 {
 
     if ($restartneeded) {
         Write-Log "Installation completed. Restart is required" "SUCCESS"
+        #return reboot required
+        return 3010
         <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
         $answer = Read-Host
         do {
@@ -910,6 +922,7 @@ Function Install-Windows2016 {
             }
         } while (!$fin)#>
     }
+    return 0
 }
 
 Function Install-Windows2019 {

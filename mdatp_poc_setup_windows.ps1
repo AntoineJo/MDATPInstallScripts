@@ -191,6 +191,7 @@ if ((Get-Module -Name "mdatp_poc_setup_windows_lib")) {
 }
 Import-Module ($global:currentpath + '\mdatp_poc_setup_windows_lib.psm1')
 
+$returnCode = 0
 
 #If we are not in download only mode, then get the info of the OS we are running on and proceed to installation or uninstallation
 if (!$global:downloadOnly) {
@@ -343,7 +344,7 @@ if (!$global:downloadOnly) {
                         $global:EPP = $false
                     }
 
-                    Install-Windows2016
+                    $returnCode = Install-Windows2016
                 }
                 else {
                     Uninstall-Windows2016
@@ -439,3 +440,5 @@ else {
     Update-offline | Out-Null
     
 }
+
+return $returnCode
