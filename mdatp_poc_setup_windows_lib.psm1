@@ -1281,7 +1281,7 @@ Function Update-offline {
     $restartneeded = $false
     $offlineupdate = "https://go.microsoft.com/fwlink/?LinkID=121721&arch=x64"
     $nisupdate = "https://go.microsoft.com/fwlink/?LinkID=187316&arch=x64&nri=true"
-
+    $needinstall = $true
     try {
 
         if ($needinstall -or $global:downloadOnly) {
