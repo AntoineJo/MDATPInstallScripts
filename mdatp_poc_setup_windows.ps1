@@ -190,6 +190,9 @@ if (!$global:downloadOnly) {
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiSpyware" -Value 0 2> $null
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiVirus" -Value 0 2> $null
 
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 0 2> $null
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiVirus" -Value 0 2> $null
+
     if ($OSinfo.Version -like "6.1.7601*") {
         #Win7/Server 2008 R2
 
