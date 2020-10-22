@@ -1278,6 +1278,7 @@ Function Add-MachineTag {
 }
 
 Function Update-offline {
+    $restartneeded = $false
     $offlineupdate = "https://go.microsoft.com/fwlink/?LinkID=121721&arch=x64"
     $nisupdate = "https://go.microsoft.com/fwlink/?LinkID=187316&arch=x64&nri=true"
 
@@ -1337,6 +1338,7 @@ Function Update-offline {
         Write-Log "Error downloading or installing Offline update/NIS" "ERROR"
         Write-Log $_ "ERROR"
     }
+    return $restartneeded
 }
 
 
