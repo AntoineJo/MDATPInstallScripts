@@ -1280,6 +1280,7 @@ Function Add-MachineTag {
 Function Update-offline {
     $restartneeded = $false
     $offlineupdate = "https://go.microsoft.com/fwlink/?LinkID=121721&arch=x64"
+    #$offlineupdateWin7 = "https://go.microsoft.com/fwlink/?LinkID=121721&clcid=0x409&arch=x64&eng=0.0.0.0&avdelta=0.0.0.0&asdelta=0.0.0.0&prod=925A3ACA-C353-458A-AC8D-A7E5EB378092"
     $nisupdate = "https://go.microsoft.com/fwlink/?LinkID=187316&arch=x64&nri=true"
     $needinstall = $true
     try {

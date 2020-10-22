@@ -394,7 +394,7 @@ if (!$global:downloadOnly) {
         Exit
     }
 
-    if(($global:EPP -and $global:OfflineUpdate) -or $global:downloadOnly)
+    if($global:EPP -and $global:OfflineUpdate)
     {
         Write-Log "Update offline"
         Update-offline
@@ -436,5 +436,6 @@ else {
             Write-Error "Unsupported OS selected"
         }
     }
+    Update-offline | Out-Null
     
 }
