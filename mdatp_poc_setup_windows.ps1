@@ -345,6 +345,7 @@ if (!$global:downloadOnly) {
                     }
 
                     $returnCode = Install-Windows2016
+                    Write-Log "Windows Server 2016 installation complete, with return code $returnCode"
                 }
                 else {
                     Uninstall-Windows2016

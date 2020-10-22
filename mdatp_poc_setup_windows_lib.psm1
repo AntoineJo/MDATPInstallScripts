@@ -896,7 +896,7 @@ Function Install-Windows2016 {
         catch {
             Write-Log "Error installing or updating MDAV" "ERROR"
             Write-Log $_ "ERROR"
-            return 1603
+            return "1603"
         }
     }
 
@@ -908,7 +908,7 @@ Function Install-Windows2016 {
     if ($restartneeded) {
         Write-Log "Installation completed. Restart is required" "SUCCESS"
         #return reboot required
-        return 3010
+        return "3010"
         <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
         $answer = Read-Host
         do {
@@ -922,7 +922,7 @@ Function Install-Windows2016 {
             }
         } while (!$fin)#>
     }
-    return 0
+    return "0"
 }
 
 Function Install-Windows2019 {
