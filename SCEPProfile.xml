@@ -20,10 +20,10 @@
                 <AddValue Name="LocalSettingOverrideDisableScriptScanning" Type="REG_DWORD">0</AddValue>
             </AddKey>
             <AddKey Name="SOFTWARE\Policies\Microsoft\Microsoft Antimalware\Threats\ThreatSeverityDefaultAction">
-                <AddValue Name="1" Type="REG_SZ">6</AddValue>
+                <AddValue Name="1" Type="REG_SZ">2</AddValue>
                 <AddValue Name="2" Type="REG_SZ">2</AddValue>
-                <AddValue Name="4" Type="REG_SZ">0</AddValue>
-                <AddValue Name="5" Type="REG_SZ">0</AddValue>
+                <AddValue Name="4" Type="REG_SZ">2</AddValue>
+                <AddValue Name="5" Type="REG_SZ">2</AddValue>
             </AddKey>
             <AddKey Name="SOFTWARE\Policies\Microsoft\Microsoft Antimalware">
                 <AddValue Name="DisableRoutinelyTakingAction" Type="REG_DWORD">0</AddValue>
@@ -31,9 +31,9 @@
                 <AddValue Name="DisableLocalAdminMerge" Type="REG_DWORD">1</AddValue>
             </AddKey>
             <AddKey Name="SOFTWARE\Policies\Microsoft\Microsoft Antimalware\UX Configuration">
-                <AddValue Name="CustomDefaultActionToastString" Type="REG_SZ">MDATP POC</AddValue>
-                <AddValue Name="Notification_Suppress" Type="REG_DWORD">0</AddValue>
-                <AddValue Name="UILockdown" Type="REG_DWORD" Disabled="false">0</AddValue>
+                <AddValue Name="CustomDefaultActionToastString" Type="REG_SZ"></AddValue>
+                <AddValue Name="Notification_Suppress" Type="REG_DWORD">1</AddValue>
+                <AddValue Name="UILockdown" Type="REG_DWORD" Disabled="false">1</AddValue>
             </AddKey>
             <AddKey Name="SOFTWARE\Policies\Microsoft\Microsoft Antimalware\Scan">
                 <AddValue Name="ScheduleQuickScanTime" Type="REG_DWORD">120</AddValue>
@@ -80,13 +80,13 @@
                 <AddValue Name="ScheduleDay" Type="REG_DWORD" Disabled="true">0</AddValue>
                 <AddValue Name="ScheduleTime" Type="REG_DWORD" Disabled="true">120</AddValue>
                 <AddValue Name="SignatureUpdateCatchupInterval" Type="REG_DWORD">1</AddValue>
-                <AddValue Name="AuGracePeriod" Type="REG_DWORD" PreviousValue="72">4320</AddValue>
+                <AddValue Name="AuGracePeriod" Type="REG_DWORD" PreviousValue="72">60</AddValue>
                 <AddValue Name="DefinitionUpdateFileSharesSources" Type="REG_SZ" Disabled="true"></AddValue>
-                <AddValue Name="FallbackOrder" Type="REG_SZ">MMPC|MicrosoftUpdateServer</AddValue>
+                <AddValue Name="FallbackOrder" Type="REG_SZ">MicrosoftUpdateServer|MMPC</AddValue>
                 <AddValue Name="SourceOrderOnly" Type="REG_SZ" Disabled="true">MicrosoftUpdateServer|MMPC</AddValue>
             </AddKey>
             <AddKey Name="SOFTWARE\Policies\Microsoft\Microsoft Antimalware\SpyNet">
-                <AddValue Name="SpyNetReporting" Type="REG_DWORD">2</AddValue>
+                <AddValue Name="SpyNetReporting" Type="REG_DWORD">1</AddValue>
                 <AddValue Name="LocalSettingOverrideSpyNetReporting" Type="REG_DWORD">0</AddValue>
                 <AddValue Name="SubmitSamplesConsent" Type="REG_DWORD">3</AddValue>
             </AddKey>

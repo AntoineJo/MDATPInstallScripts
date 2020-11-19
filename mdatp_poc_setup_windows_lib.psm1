@@ -561,6 +561,18 @@ Function OnboardingEDR {
             Start-Process -FilePath ($ENV:TEMP + "\WindowsDefenderATPLocalOnboardingScript_silent.cmd") -Wait -Verb RunAs
             Write-Log "Onboarding completed" "SUCCESS"
         }
+        elseif (Test-Path ($global:currentpath + '\WindowsDefenderATPLocalOnboardingScript.cmd')) {
+            Write-Log "Onboarding script detected, proceed with onboarding"
+            
+            Start-Process -FilePath ($global:currentpath + "\WindowsDefenderATPLocalOnboardingScript.cmd") -Wait -Verb RunAs
+            Write-Log "Onboarding completed" "SUCCESS"
+        }
+        elseif (Test-Path ($global:currentpath + '\WindowsDefenderATPOnboardingScript.cmd')) {
+            Write-Log "Silent onboarding script detected, proceed with onboarding"
+            
+            Start-Process -FilePath ($global:currentpath + "\WindowsDefenderATPOnboardingScript.cmd") -Wait -Verb RunAs
+            Write-Log "Onboarding completed" "SUCCESS"
+        }
         else {
             Write-Log "Issue finding the onboarding package, make sure you download the file from https://securitycenter.windows.com/preferences2/onboarding and put it in the same folder as the script" "ERROR"
         }
@@ -855,10 +867,19 @@ Function Install-Windows2016 {
                 if ($WDAVFeature.InstallState -ne "Installed") {
                     Write-Log "WDAV Feature is not installed, Installing now..."
                     $WDAVInstall = Install-WindowsFeature -Name "Windows-Defender-Features"
-                    if ($WDAVInstall.RestartNeeded -eq "Yes") { $restartneeded = $true }
+                    if ($WDAVInstall.RestartNeeded -eq "Yes") { 
+                        $restartneeded = $true 
+                        Write-Log "Restart Needed" "WARN"
+                    }
                 }
                 else {
-                    Write-Log "WDAV feature is installed, check the event viewer to understand why WDAV is not running"
+                    Write-Log "WDAV Feature is installed, but service is not running. Uninstalling feature"
+                    $WDAVInstall = Uninstall-WindowsFeature -Name "Windows-Defender-Features"
+                    if ($WDAVInstall.RestartNeeded -eq "Yes") { 
+                        $restartneeded = $true 
+                        Write-Log "Restart Needed" "WARN"
+                    }
+                    
                 }
             }
             else {
@@ -885,6 +906,7 @@ Function Install-Windows2016 {
 
     if ($restartneeded) {
         Write-Log "Installation completed. Restart is required" "SUCCESS"
+        #return reboot required
         <#Write-Host "You should now restart your Computer. Do you want to do it now?(Y/N)"
         $answer = Read-Host
         do {
@@ -913,10 +935,10 @@ Function Install-Windows2019 {
             $WDAVProcess = Get-Process -ProcessName MsMpEng 2> $null
             if ($null -eq $WDAVProcess) {
                 Write-Log "Windows Defender is not running, Checking WDAV feature status"
-                $WDAVFeature = Get-WindowsFeature -Name "Windows-Defender-Features"
+                
                 if ($WDAVFeature.InstallState -ne "Installed") {
                     Write-Log "WDAV Feature is not installed, Installing now..."
-                    $WDAVInstall = Install-WindowsFeature -Name "Windows-Defender-Features"
+                    
                     if ($WDAVInstall.RestartNeeded -eq "Yes") { $restartneeded = $true }
                 }
                 else {
@@ -925,11 +947,13 @@ Function Install-Windows2019 {
             }
             else {
                 Write-Log "Windows Defender is already installed and running"
-                Write-Log "Checking security intelligence updates settings"
-                $WUSetting = (Get-ItemProperty -Path HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU -Name AUOptions).AUOptions
-                if (($WUSetting -eq "3") -or ($WUSetting -eq "4")) {
-                    Write-Log "Launching security intelligence updates"
-                    Update-MPSignature -UpdateSource MicrosoftUpdateServer
+                if(!$global:OfflineUpdate){
+                    Write-Log "Checking security intelligence updates settings"
+                    $WUSetting = (Get-ItemProperty -Path HKLM:\Software\Policies\Microsoft\Windows\WindowsUpdate\AU -Name AUOptions).AUOptions
+                    if (($WUSetting -eq "3") -or ($WUSetting -eq "4")) {
+                        Write-Log "Launching security intelligence updates"
+                        Update-MPSignature -UpdateSource MicrosoftUpdateServer
+                    }
                 }
             }
         }
@@ -1143,7 +1167,7 @@ Function Set-WindowsSecuritySettings {
         Set-MpPreference -DisableRemovableDriveScanning 0
 
         #Enable potentially unwanted apps
-        Write-Log "INFO" "$ProtectionMode PUA Protection"
+        Write-Log "$ProtectionMode PUA Protection" 'INFO'
         Set-MpPreference -PUAProtection $ProtectionMode
 
         #Enable Email & Archive scan
@@ -1155,10 +1179,10 @@ Function Set-WindowsSecuritySettings {
 
         #this is something to be discused with security
         #Enable sample submission"
-        Set-MpPreference -SubmitSamplesConsent SendSafeSamples
+        Set-MpPreference -SubmitSamplesConsent SendAllSamples
 
         #Set cloud protection level to High"
-        Set-MpPreference -CloudBlockLevel Default
+        Set-MpPreference -CloudBlockLevel Medium
 
         #Set cloud timeout to 1 min"
         Set-MpPreference -CloudExtendedTimeout 50
@@ -1175,20 +1199,20 @@ Function Set-WindowsSecuritySettings {
 
         #LOB apps should be whitelisted
         #Enable ransomware protection"
-        Write-Log "INFO" "$ProtectionMode Controlled Folder Access Protection"
+        Write-Log "$ProtectionMode Controlled Folder Access Protection" 'INFO'
         Set-MpPreference -EnableControlledFolderAccess $ProtectionMode
 
         #this is something to be discused with security - same as smartscreen
         #Enable network protection"
-        Write-Log "INFO" "$ProtectionMode Network Protection"
+        Write-Log "$ProtectionMode Network Protection" 'INFO'
         Set-MpPreference -EnableNetworkProtection $ProtectionMode
 
         #"Increase default protection level"
-        #Set-MpPreference -SevereThreatDefaultAction Quarantine
-        #Set-MpPreference -HighThreatDefaultAction Quarantine
-        #Set-MpPreference -LowThreatDefaultAction Quarantine
-        #Set-MpPreference -ModerateThreatDefaultAction Quarantine
-        #Set-MpPreference -UnknownThreatDefaultAction Quarantine
+        Set-MpPreference -SevereThreatDefaultAction Quarantine
+        Set-MpPreference -HighThreatDefaultAction Quarantine
+        Set-MpPreference -LowThreatDefaultAction Quarantine
+        Set-MpPreference -ModerateThreatDefaultAction Quarantine
+        Set-MpPreference -UnknownThreatDefaultAction Quarantine
 
         #Enforce File Access protection
         #Set-ItemProperty -path 'HKLM:\Software\Policies\Microsoft\Windows Defender\Policy Manager\' -Name AllowOnAccessProtection -Value 1
@@ -1201,7 +1225,7 @@ Function Set-WindowsSecuritySettings {
 
             { $_ -ge "1709" } {
                 #Attack Surface Reduction rules, audit mode by default, can be changed to block if you want to enforce settings
-                Write-Log "INFO" "$ProtectionMode ASR Protection"
+                Write-Log "$ProtectionMode ASR Protection" 'INFO'
                 Write-Log 'Block all Office applications from creating child processes' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids D4F940AB-401B-4EFC-AADC-AD5F3C50688A -AttackSurfaceReductionRules_Actions $ProtectionMode
                 Write-Log 'Block executable content from email client and webmail' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids BE9BA2D9-53EA-4CDC-84E5-9B1EEEE46550 -AttackSurfaceReductionRules_Actions $ProtectionMode
                 Write-Log 'Block execution of potentially obfuscated scripts' 'INFO'; Add-MpPreference -AttackSurfaceReductionRules_Ids 5BEB7EFE-FD9A-4556-801D-275E5FFC04CC -AttackSurfaceReductionRules_Actions $ProtectionMode
@@ -1263,6 +1287,72 @@ Function Add-MachineTag {
     
 }
 
+Function Update-offline {
+    $restartneeded = $false
+    $offlineupdate = "https://go.microsoft.com/fwlink/?LinkID=121721&arch=x64"
+    #$offlineupdateWin7 = "https://go.microsoft.com/fwlink/?LinkID=121721&clcid=0x409&arch=x64&eng=0.0.0.0&avdelta=0.0.0.0&asdelta=0.0.0.0&prod=925A3ACA-C353-458A-AC8D-A7E5EB378092"
+    $nisupdate = "https://go.microsoft.com/fwlink/?LinkID=187316&arch=x64&nri=true"
+    $needinstall = $true
+    try {
+
+        if ($needinstall -or $global:downloadOnly) {
+            #offline update
+            if (!(Test-Path ($global:currentpath + '\mpam-fe.exe'))) {
+                Write-Log "Download Offline update for defender"
+                (New-Object Net.WebClient).DownloadFile($offlineupdate, ($global:downloadLocation + '\mpam-fe.exe'))
+            }
+            else {
+                if (!$global:downloadOnly) {
+                    Copy-Item ($global:currentpath + '\mpam-fe.exe') ($global:downloadLocation + '\mpam-fe.exe')  -Force
+                }
+            }
+
+            if (!$global:downloadOnly) {
+                if (Test-Path ($global:downloadLocation + '\mpam-fe.exe')) {
+                    Write-Log "download of Offline updates succeded"
+                    Write-Log "Installing Offline updates"
+                    Start-Process -FilePath ($global:downloadLocation + '\mpam-fe.exe') -Wait -Verb runas
+                    Write-Log "Offline updates install result $LastExitCode"
+                    $restartneeded = $false
+                }
+                else {
+                    Write-Log "Error downloading Offline update"
+                }
+            }
+
+            #offline nis
+            if (!(Test-Path ($global:currentpath + '\nis_full.exe'))) {
+                Write-Log "Download Offline update for NIS"
+                (New-Object Net.WebClient).DownloadFile($nisupdate, ($global:downloadLocation + '\nis_full.exe'))
+            }
+            else {
+                if (!$global:downloadOnly) {
+                    Copy-Item ($global:currentpath + '\nis_full.exe') ($global:downloadLocation + '\nis_full.exe')  -Force
+                }
+            }
+
+            if (!$global:downloadOnly) {
+                if (Test-Path ($global:downloadLocation + '\nis_full.exe')) {
+                    Write-Log "download of Offline updates for NIS succeded"
+                    Write-Log "Installing Offline updates for NIS "
+                    Start-Process -FilePath ($global:downloadLocation + '\nis_full.exe') -Wait -Verb runas
+                    Write-Log "Offline updates for NIS install result $LastExitCode"
+                    $restartneeded = $false
+                }
+                else {
+                    Write-Log "Error downloading Offline update for NIS "
+                }
+            }
+        }
+    }
+    catch {
+        Write-Log "Error downloading or installing Offline update/NIS" "ERROR"
+        Write-Log $_ "ERROR"
+    }
+    return $restartneeded
+}
+
+
 Export-ModuleMember -Function Write-Log
 Export-ModuleMember -Function Install-Windows7
 Export-ModuleMember -Function Install-Windows81
@@ -1283,3 +1373,4 @@ Export-ModuleMember -Function Set-WindowsSecuritySettings
 Export-ModuleMember -Function OnboardingEDR
 Export-ModuleMember -Function OffboardingEDR
 Export-ModuleMember -Function Add-MachineTag
+Export-ModuleMember -Function Update-offline

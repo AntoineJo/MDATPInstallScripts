@@ -33,9 +33,17 @@ Param(
     $MDATPTag,
 
     [Parameter(Mandatory = $false)]
-    [ValidateSet("AuditMode", "EnforcedMode","Disabled")]
+    [ValidateSet("AuditMode", "EnforcedMode", "Disabled")]
     [String]
     $ASRMode = "AuditMode",
+
+    [Parameter(Mandatory = $false)]
+    [switch]
+    $OfflineUpdate,
+
+    [Parameter(Mandatory = $false)]
+    [switch]
+    $GetLogs,
 
     [Parameter(Mandatory = $false)]
     [switch]
@@ -127,18 +135,38 @@ else {
     $global:EDR = $false
 }
 
+#manage offline intelligence security update
+if($OfflineUpdate){
+    $global:OfflineUpdate = $true
+}
+else {
+    $global:OfflineUpdate = $false
+}
+
 # Logic to handle uninstallation with the same global variables
-if($uninstallEDR -or $uninstallEPP){
+if ($uninstallEDR -or $uninstallEPP) {
     $global:uninstall = $true
-    if($uninstallEPP){
+    if ($uninstallEPP) {
         $global:EPP = $true
     }
-    if($uninstallEDR){
+    if ($uninstallEDR) {
         $global:EDR = $true
     }
 }
 else {
     $global:uninstall = $false
+}
+
+# Third party AV process name
+#   this is used to prevent installation of SCEP on computer running a third party AV
+$AVProcesses = "ntrtscan.exe","masvc.exe"
+
+#Enable debug mode
+if($GetLogs){
+    $global:GetLogs = $true
+}
+else {
+    $global:GetLogs = $false
 }
 
 $global:downloadOnly = $DownloadContent
@@ -153,7 +181,7 @@ else {
 }
 
 $global:OnboardingPackage = $global:currentpath + '\WindowsDefenderATPOnboardingPackage.zip'
-$global:OffboardingPackageName = (Get-ChildItem -Recurse -Force $global:currentpath | Where-Object {!$_.PSIsContainer -and  ($_.Name -like "*WindowsDefenderATPOffboardingPackage*") }).Name
+$global:OffboardingPackageName = ((Get-ChildItem -Recurse -Force $global:currentpath 2> $null) | Where-Object { !$_.PSIsContainer -and ($_.Name -like "*WindowsDefenderATPOffboardingPackage*") }).Name
 
 if (!(Test-Path ($ENV:TEMP + '\MDATP\'))) {
     New-Item ($ENV:TEMP + '\MDATP') -ItemType Directory | Out-Null
@@ -180,11 +208,21 @@ if ((Get-Module -Name "mdatp_poc_setup_windows_lib")) {
 Import-Module ($global:currentpath + '\mdatp_poc_setup_windows_lib.psm1')
 
 
+
 #If we are not in download only mode, then get the info of the OS we are running on and proceed to installation or uninstallation
 if (!$global:downloadOnly) {
     # Get Windows OS Information
     $OSinfo = get-wmiobject win32_operatingsystem
     Write-Log ("OS : " + $OSinfo.Caption + " | Build number: " + $OSinfo.Version + " | SKU: " + $OSinfo.OperatingSystemSKU)
+
+    if($global:EDR -or $global:EDR){
+        Write-Log "Ensure there is no registry key that prevent MDAV to run" "INFO"
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiSpyware" -Value 0 2> $null
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiVirus" -Value 0 2> $null
+
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 0 2> $null
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiVirus" -Value 0 2> $null
+    }
 
     if ($OSinfo.Version -like "6.1.7601*") {
         #Win7/Server 2008 R2
@@ -199,7 +237,7 @@ if (!$global:downloadOnly) {
             }
             $global:OSName = "Windows7x64"
 
-            if(!$global:uninstall) {
+            if (!$global:uninstall) {
                 Install-Windows7
             }
             else {
@@ -212,7 +250,14 @@ if (!$global:downloadOnly) {
             Write-Log "Windows Server 2008 R2"
             $global:OSName = "Windows2008R2"
 
-            if(!$global:uninstall) {
+            if (!$global:uninstall) {
+                #Check presence of a third party AV
+                $thirdPartyAV = $null
+                $thirdPartyAV = get-process -name $AVProcesses 2> $null
+                if ($thirdPartyAV) {
+                    #if a third party AV is present then do not install MDAV
+                    $global:EPP = $false
+                }
                 Install-Windows2008R2
             }
             else {
@@ -239,7 +284,7 @@ if (!$global:downloadOnly) {
             }
             $global:OSName = "Windows8.1x64"
             
-            if(!$global:uninstall) {
+            if (!$global:uninstall) {
                 Install-Windows81
             }
             else {
@@ -257,7 +302,14 @@ if (!$global:downloadOnly) {
             }
             $global:OSName = "Windows2012R2"
             
-            if(!$global:uninstall) {
+            if (!$global:uninstall) {
+                #Check presence of a third party AV
+                $thirdPartyAV = $null
+                $thirdPartyAV = get-process -name $AVProcesses 2> $null
+                if ($thirdPartyAV) {
+                    #if a third party AV is present then do not install MDAV
+                    $global:EPP = $false
+                }
                 Install-Windows2012R2
             }
             else {
@@ -279,7 +331,7 @@ if (!$global:downloadOnly) {
             Write-Log "Windows 10 Pro, Pro N, Enterprise or Enterprise N"
             $global:OSName = "Windows10x64"
             
-            if(!$global:uninstall) {
+            if (!$global:uninstall) {
                 Install-Windows10
                 if ($global:EPP -or $global:ASRValue) {
                     Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
@@ -299,8 +351,18 @@ if (!$global:downloadOnly) {
                 Write-Log "Windows Server 2016"
                 $global:OSName = "Windows2016"
                 
-                if(!$global:uninstall) {
+                if (!$global:uninstall) {
+
+                    #Check presence of a third party AV
+                    $thirdPartyAV = $null
+                    $thirdPartyAV = get-process -name $AVProcesses 2> $null
+                    if ($thirdPartyAV) {
+                        #if a third party AV is present then do not install MDAV
+                        $global:EPP = $false
+                    }
+
                     Install-Windows2016
+                    
                 }
                 else {
                     Uninstall-Windows2016
@@ -312,8 +374,19 @@ if (!$global:downloadOnly) {
                 Write-Log "Windows Server 2019"
                 $global:OSName = "Windows2019"
 
-                if(!$global:uninstall) {
+                if (!$global:uninstall) {
                     Install-Windows2019
+                    
+                    #Check presence of a third party AV
+                    $thirdPartyAV = $null
+                    $thirdPartyAV = get-process -name $AVProcesses 2> $null
+                    if ($thirdPartyAV) {
+                        #put MDAV in passive mode https://docs.microsoft.com/en-us/windows/security/threat-protection/microsoft-defender-antivirus/microsoft-defender-antivirus-compatibility 
+                        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection" -Name "ForceDefenderPassiveMode" -Value 1 2> $null
+                    }
+                    
+                    #Start the service
+                    Start-Service -Name WinDefend
                     if ($global:EPP -or $global:ASRValue) {
                         Set-WindowsSecuritySettings -ProtectionMode $global:ASRValue # can be changed to "Enabled" for ASR, CFA, NP
                     }
@@ -340,12 +413,20 @@ if (!$global:downloadOnly) {
         Exit
     }
 
+    if($global:EPP -and $global:OfflineUpdate)
+    {
+        Write-Log "Update offline"
+        Update-offline | Out-Null
+    }
+
     if ($global:EDR) {
         Add-MachineTag
     }
-    if(!$global:uninstall){
-        Confirm-MDATPInstallation 
+
+    if($globale:GetLogs){
+        Confirm-MDATPInstallation
     }
+
 }
 else {
     
@@ -378,5 +459,13 @@ else {
             Write-Error "Unsupported OS selected"
         }
     }
-    Confirm-MDATPInstallation
+    
+    if($globale:GetLogs){
+        Confirm-MDATPInstallation
+    }
+
+    Update-offline | Out-Null
+    
 }
+
+
