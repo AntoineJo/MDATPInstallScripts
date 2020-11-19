@@ -1182,7 +1182,7 @@ Function Set-WindowsSecuritySettings {
         Set-MpPreference -SubmitSamplesConsent SendAllSamples
 
         #Set cloud protection level to High"
-        Set-MpPreference -CloudBlockLevel High
+        Set-MpPreference -CloudBlockLevel Medium
 
         #Set cloud timeout to 1 min"
         Set-MpPreference -CloudExtendedTimeout 50

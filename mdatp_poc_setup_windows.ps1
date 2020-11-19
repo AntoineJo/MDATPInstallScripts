@@ -43,6 +43,10 @@ Param(
 
     [Parameter(Mandatory = $false)]
     [switch]
+    $GetLogs,
+
+    [Parameter(Mandatory = $false)]
+    [switch]
     $DownloadContent,
 
     [Parameter(Mandatory = $false)]
@@ -153,6 +157,18 @@ else {
     $global:uninstall = $false
 }
 
+# Third party AV process name
+#   this is used to prevent installation of SCEP on computer running a third party AV
+$AVProcesses = "ntrtscan.exe","masvc.exe"
+
+#Enable debug mode
+if($GetLogs){
+    $global:GetLogs = $true
+}
+else {
+    $global:GetLogs = $false
+}
+
 $global:downloadOnly = $DownloadContent
 $global:OSName = $OS
 $global:currentpath = split-path $SCRIPT:MyInvocation.MyCommand.Path -parent
@@ -199,13 +215,14 @@ if (!$global:downloadOnly) {
     $OSinfo = get-wmiobject win32_operatingsystem
     Write-Log ("OS : " + $OSinfo.Caption + " | Build number: " + $OSinfo.Version + " | SKU: " + $OSinfo.OperatingSystemSKU)
 
-    Write-Log "Ensure there is no registry key that prevent MDAV to run" "INFO"
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiSpyware" -Value 0 2> $null
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiVirus" -Value 0 2> $null
+    if($global:EDR -or $global:EDR){
+        Write-Log "Ensure there is no registry key that prevent MDAV to run" "INFO"
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiSpyware" -Value 0 2> $null
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Policies\Windows Defender" -Name "DisableAntiVirus" -Value 0 2> $null
 
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 0 2> $null
-    Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiVirus" -Value 0 2> $null
-
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiSpyware" -Value 0 2> $null
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name "DisableAntiVirus" -Value 0 2> $null
+    }
 
     if ($OSinfo.Version -like "6.1.7601*") {
         #Win7/Server 2008 R2
@@ -234,11 +251,11 @@ if (!$global:downloadOnly) {
             $global:OSName = "Windows2008R2"
 
             if (!$global:uninstall) {
-                #Check presence of Trend
-                $trend = $null
-                $trend = get-process -name ntrtscan 2> $null
-                if ($trend) {
-                    #if trend is present then do not install MDAV
+                #Check presence of a third party AV
+                $thirdPartyAV = $null
+                $thirdPartyAV = get-process -name $AVProcesses 2> $null
+                if ($thirdPartyAV) {
+                    #if a third party AV is present then do not install MDAV
                     $global:EPP = $false
                 }
                 Install-Windows2008R2
@@ -286,11 +303,11 @@ if (!$global:downloadOnly) {
             $global:OSName = "Windows2012R2"
             
             if (!$global:uninstall) {
-                #Check presence of Trend
-                $trend = $null
-                $trend = get-process -name ntrtscan 2> $null
-                if ($trend) {
-                    #if trend is present then do not install MDAV
+                #Check presence of a third party AV
+                $thirdPartyAV = $null
+                $thirdPartyAV = get-process -name $AVProcesses 2> $null
+                if ($thirdPartyAV) {
+                    #if a third party AV is present then do not install MDAV
                     $global:EPP = $false
                 }
                 Install-Windows2012R2
@@ -336,11 +353,11 @@ if (!$global:downloadOnly) {
                 
                 if (!$global:uninstall) {
 
-                    #Check presence of Trend
-                    $trend = $null
-                    $trend = get-process -name ntrtscan 2> $null
-                    if ($trend) {
-                        #if trend is present then do not install MDAV
+                    #Check presence of a third party AV
+                    $thirdPartyAV = $null
+                    $thirdPartyAV = get-process -name $AVProcesses 2> $null
+                    if ($thirdPartyAV) {
+                        #if a third party AV is present then do not install MDAV
                         $global:EPP = $false
                     }
 
@@ -360,10 +377,10 @@ if (!$global:downloadOnly) {
                 if (!$global:uninstall) {
                     Install-Windows2019
                     
-                    #Check presence of Trend
-                    $trend = $null
-                    $trend = get-process -name ntrtscan 2> $null
-                    if ($trend) {
+                    #Check presence of a third party AV
+                    $thirdPartyAV = $null
+                    $thirdPartyAV = get-process -name $AVProcesses 2> $null
+                    if ($thirdPartyAV) {
                         #put MDAV in passive mode https://docs.microsoft.com/en-us/windows/security/threat-protection/microsoft-defender-antivirus/microsoft-defender-antivirus-compatibility 
                         Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection" -Name "ForceDefenderPassiveMode" -Value 1 2> $null
                     }
@@ -406,6 +423,10 @@ if (!$global:downloadOnly) {
         Add-MachineTag
     }
 
+    if($globale:GetLogs){
+        Confirm-MDATPInstallation
+    }
+
 }
 else {
     
@@ -438,6 +459,11 @@ else {
             Write-Error "Unsupported OS selected"
         }
     }
+    
+    if($globale:GetLogs){
+        Confirm-MDATPInstallation
+    }
+
     Update-offline | Out-Null
     
 }
