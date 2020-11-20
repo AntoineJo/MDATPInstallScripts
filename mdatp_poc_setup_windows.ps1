@@ -159,7 +159,10 @@ else {
 
 # Third party AV process name
 #   this is used to prevent installation of SCEP on computer running a third party AV
-$AVProcesses = "ntrtscan.exe","masvc.exe"
+# TrendMicro engine: ntrtscan.exe
+# McAfee engine: masvc.exe
+# Please add more 
+$AVProcesses = "ntrtscan","masvc"
 
 #Enable debug mode
 if($GetLogs){

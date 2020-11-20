@@ -37,7 +37,11 @@ Then when installing it will, depending on parameters
 - Detect the operating system version
 - Install and setup all Defender ATP components
 - (optional) Add a machine tag
-- Troubleshoot connectivity problems
+- (optional) Troubleshoot connectivity problems
+- If a thrid party AV is installed we will either not install MDAV or configure it for passive mode if possible 
+     Third party AV are detected based on process name. 
+        Trend -> NTRTSCAN
+        McAfee -> masvc
 
 WARNING:
 This script does not check if there is another antivirus installed, you should uninstall your existing Antimalware solution before installing/enabling SCEP/Defender Antivirus
@@ -86,6 +90,13 @@ mdatp_poc_setup_windows.ps1 -uninstallEDR -WorkspaceId ....
 * ASRMode is optional, it will set Attack Surface Reduction, Control Folder Access and Network Protection to Audit mode or enable them in block mode - possible values are AuditMode, EnforcedMode, Disabled
 * OS must be used for DownloadContent, possible values are one of: "All", "Windows7x64", "Windows8.1x64", "Windows10x64", "Windows2008R2", "Windows2012R2", "Windows2016", "Windows2019"
 
+*** Advanced uses cases
+* If you encounter issues during the installation, you can retry using the GetLogs flag to collect all installation logs
+mdatp_poc_setup_windows.ps1 -installEDR -installEPP -GetLogs
+*
+* If you want to perform an offline update for Defender AV
+mdatp_poc_setup_windows.ps1 -installEPP -OfflineUpdate
+
 --------------------------------------------
 Examples
 --------------------------------------------
@@ -95,7 +106,7 @@ Examples
 * Install EDR only on Windows 7
 .\mdatp_poc_setup_windows.ps1 -installEDR -WorkspaceId "...." -WorkspaceKey "...." -MDATPTag Deployment
 
-* Install EPP only on Windows 10
+* Install EPP only on Windows 10 + Protection enabled
 .\mdatp_poc_setup_windows.ps1 -installEPP -ASRMode EnforcedMode
 
 * Uninstall EPP only on Windows Server 2008R2
