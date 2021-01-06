@@ -230,7 +230,7 @@ if (!$global:downloadOnly) {
     if ($OSinfo.Version -like "6.1.7601*") {
         #Win7/Server 2008 R2
 
-        if (("4", "6", "27") -contains $OSinfo.OperatingSystemSKU) {
+        if (("4", "6", "27","48") -contains $OSinfo.OperatingSystemSKU) {
             #Windows 7 Pro, Enterprise or Enterprise N
             Write-Log "Windows 7 Pro, Enterprise or Enterprise N"
             if ($OSinfo.OSArchitecture -ne "64-bit") {
@@ -278,7 +278,7 @@ if (!$global:downloadOnly) {
     elseif ($OSinfo.Version -like "6.3.9600*") {
         #Win8.1/2012R2
     
-        if (("4", "6", "27") -contains $OSinfo.OperatingSystemSKU) {
+        if (("4", "6", "27","48") -contains $OSinfo.OperatingSystemSKU) {
             Write-Log "Windows 8.1 Pro, Enterprise or Enterprise N"
             if ($OSinfo.OSArchitecture -ne "64-bit") {
                 Write-Log "This script is meant for Windows 8.1 x64. x86 is not yet possible" "FATAL"
